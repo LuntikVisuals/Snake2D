@@ -2,8 +2,23 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#3DFF6E"
-        android:pathData="M28,54h12v12h-12zM40,54h12v12h-12zM52,54h12v12h-12zM64,42h12v12h-12zM64,30h12v12h-12z"/>
-    <path android:fillColor="#FF4D4D"
-        android:pathData="M78,28h10v10h-10z"/>
+    <!-- glass frame glow -->
+    <path android:fillColor="#1A1A22"
+        android:pathData="M18,18h72v72h-72z"/>
+    <path android:fillColor="#00000000"
+        android:strokeColor="#88FFFFFF" android:strokeWidth="2"
+        android:pathData="M22,22h64v64h-64z"/>
+    <!-- checker snake body (simplified S) -->
+    <path android:fillColor="#2A2A32"
+        android:pathData="M40,70c0,0 4,-18 14,-22c10,-4 18,2 22,10c4,8 2,18 -6,22c-8,4 -18,0 -22,-8c-4,-8 -2,-16 6,-18"/>
+    <path android:fillColor="#E8E8F0"
+        android:pathData="M52,36h10v10h-10zM42,46h10v10h-10zM52,46h10v10h-10zM62,46h10v10h-10zM62,56h10v10h-10zM52,56h10v10h-10z"/>
+    <path android:fillColor="#121218"
+        android:pathData="M42,56h10v10h-10zM62,36h10v10h-10zM72,46h8v10h-8z"/>
+    <!-- eyes -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M68,40h3v3h-3zM74,40h3v3h-3z"/>
+    <!-- tongue -->
+    <path android:fillColor="#CCCCCC"
+        android:pathData="M78,44h8v1.5h-8z"/>
 </vector>
