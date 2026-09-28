@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,8 +23,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,14 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -80,8 +75,6 @@ private const val ROWS = 20
 private object G {
     val Bg = Color(0xFF070A0C)
     val Panel = Color(0xFF12181C)
-    val Board = Color(0xFF0E1418)
-    val Grid = Color(0xFF1A242C)
     val Text = Color(0xFFE8F0F4)
     val Dim = Color.White.copy(alpha = 0.5f)
     val Mute = Color.White.copy(alpha = 0.3f)
@@ -259,9 +252,7 @@ private fun PlayScreen(store: ProgressStore, mode: GameMode, onExit: () -> Unit)
                 .fillMaxWidth()
                 .aspectRatio(COLS.toFloat() / ROWS)
                 .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.verticalGradient(listOf(Color(0xFF101820), Color(0xFF0A1014)))
-                )
+                .background(Brush.verticalGradient(listOf(Color(0xFF101820), Color(0xFF0A1014))))
                 .border(1.dp, G.Border, RoundedCornerShape(16.dp))
                 .pointerInput(Unit) {
                     detectDragGestures { _, drag ->
@@ -273,39 +264,21 @@ private fun PlayScreen(store: ProgressStore, mode: GameMode, onExit: () -> Unit)
                     }
                 }
         ) {
-            Canvas(Modifier.fillMaxSize()) {
-                val cw = size.width / COLS
-                val ch = size.height / ROWS
-                for (x in 0..COLS) drawLine(G.Grid, Offset(x * cw, 0f), Offset(x * cw, size.height), 1f)
-                for (y in 0..ROWS) drawLine(G.Grid, Offset(0f, y * ch), Offset(size.width, y * ch), 1f)
-                // food glow
-                drawCircle(
-                    G.Food.copy(alpha = 0.25f),
-                    radius = cw * 0.7f,
-                    center = Offset(food.x * cw + cw / 2, food.y * ch + ch / 2)
-                )
-                drawRoundRect(
-                    G.Food,
-                    topLeft = Offset(food.x * cw + 3, food.y * ch + 3),
-                    size = Size(cw - 6, ch - 6),
-                    cornerRadius = CornerRadius(8f, 8f)
-                )
-                val headC = Color(skin.headColor)
-                val bodyC = Color(skin.bodyColor)
-                snake.forEachIndexed { i, c ->
-                    val col = if (i == 0) headC else bodyC.copy(alpha = (1f - i * 0.03f).coerceAtLeast(0.4f))
-                    drawRoundRect(
-                        col,
-                        topLeft = Offset(c.x * cw + 2f, c.y * ch + 2f),
-                        size = Size(cw - 4f, ch - 4f),
-                        cornerRadius = CornerRadius(7f, 7f)
-                    )
-                    if (i == 0) {
-                        drawCircle(Color.White.copy(alpha = 0.9f), 2.5f, Offset(c.x * cw + cw * 0.35f, c.y * ch + ch * 0.35f))
-                        drawCircle(Color.White.copy(alpha = 0.9f), 2.5f, Offset(c.x * cw + cw * 0.65f, c.y * ch + ch * 0.35f))
-                    }
-                }
-            }
+            SmoothSnakeBoard(
+                cols = COLS,
+                rows = ROWS,
+                snake = snake.map { RenderCell(it.x, it.y) },
+                food = RenderCell(food.x, food.y),
+                dir = when (dir) {
+                    Dir.UP -> RenderDir.UP
+                    Dir.DOWN -> RenderDir.DOWN
+                    Dir.LEFT -> RenderDir.LEFT
+                    Dir.RIGHT -> RenderDir.RIGHT
+                },
+                headColor = Color(skin.headColor),
+                bodyColor = Color(skin.bodyColor),
+                foodColor = G.Food
+            )
             if (!running && !gameOver) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(0.5f)), contentAlignment = Alignment.Center) {
                     Text("Старт", color = G.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -342,9 +315,7 @@ private fun PlayScreen(store: ProgressStore, mode: GameMode, onExit: () -> Unit)
 @Composable
 private fun ShopScreen(store: ProgressStore, onChange: () -> Unit, onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
-    ) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Магазин", color = G.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text("${store.coins} монет", color = G.Gold, fontSize = 14.sp)
@@ -354,36 +325,23 @@ private fun ShopScreen(store: ProgressStore, onChange: () -> Unit, onBack: () ->
             val unlocked = store.isUnlocked(skin.id)
             val selected = store.selectedSkin == skin.id
             Panel {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(skin.name, color = G.Text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text(skin.rarity.title, color = Color(skin.rarity.color), fontSize = 12.sp)
                         if (skin.unlockOnlyCase) Text("Только из кейса", color = G.Mute, fontSize = 11.sp)
                     }
-                    Box(
-                        Modifier.size(28.dp).clip(RoundedCornerShape(6.dp))
-                            .background(Color(skin.bodyColor))
-                            .border(2.dp, Color(skin.headColor), RoundedCornerShape(6.dp))
-                    )
+                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(Color(skin.bodyColor)).border(2.dp, Color(skin.headColor), RoundedCornerShape(6.dp)))
                     Spacer(Modifier.size(10.dp))
                     when {
                         selected -> Text("Надето", color = G.Accent, fontSize = 13.sp)
                         unlocked -> Text("Надеть", color = G.Text, fontSize = 13.sp, modifier = Modifier.clickable {
-                            store.selectedSkin = skin.id
-                            msg = "Скин: ${skin.name}"
-                            onChange()
+                            store.selectedSkin = skin.id; msg = "Скин: ${skin.name}"; onChange()
                         })
                         skin.unlockOnlyCase -> Text("Кейс", color = G.Mute, fontSize = 13.sp)
                         else -> Text("${skin.price}", color = G.Gold, fontSize = 13.sp, modifier = Modifier.clickable {
                             if (store.spendCoins(skin.price)) {
-                                store.unlockSkin(skin.id)
-                                store.selectedSkin = skin.id
-                                msg = "Куплено: ${skin.name}"
-                                onChange()
+                                store.unlockSkin(skin.id); store.selectedSkin = skin.id; msg = "Куплено: ${skin.name}"; onChange()
                             } else msg = "Мало монет"
                         })
                     }
@@ -401,9 +359,7 @@ private fun ShopScreen(store: ProgressStore, onChange: () -> Unit, onBack: () ->
 private fun CasesScreen(store: ProgressStore, onChange: () -> Unit, onBack: () -> Unit) {
     var lastDrop by remember { mutableStateOf<SnakeSkin?>(null) }
     var msg by remember { mutableStateOf("") }
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
-    ) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Кейсы", color = G.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text("${store.coins} монет", color = G.Gold, fontSize = 14.sp)
         Spacer(Modifier.height(12.dp))
@@ -413,10 +369,7 @@ private fun CasesScreen(store: ProgressStore, onChange: () -> Unit, onBack: () -
                 Text("${c.price} монет", color = G.Gold, fontSize = 13.sp)
                 Spacer(Modifier.height(8.dp))
                 ActionBtn("Открыть") {
-                    if (!store.spendCoins(c.price)) {
-                        msg = "Мало монет"
-                        return@ActionBtn
-                    }
+                    if (!store.spendCoins(c.price)) { msg = "Мало монет"; return@ActionBtn }
                     val drop = ShopData.openCase(c)
                     store.unlockSkin(drop.id)
                     lastDrop = drop
@@ -434,10 +387,7 @@ private fun CasesScreen(store: ProgressStore, onChange: () -> Unit, onBack: () -
                 Text(s.rarity.title, color = G.Dim, fontSize = 13.sp)
             }
         }
-        if (msg.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(msg, color = G.Dim, fontSize = 13.sp)
-        }
+        if (msg.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(msg, color = G.Dim, fontSize = 13.sp) }
         Spacer(Modifier.height(12.dp))
         ActionBtn("Назад") { onBack() }
     }
@@ -448,7 +398,6 @@ private fun TopScreen(store: ProgressStore, onBack: () -> Unit) {
     var remote by remember { mutableStateOf<List<LeaderEntry>>(emptyList()) }
     var status by remember { mutableStateOf("Загрузка…") }
     val local = store.leaderboard()
-
     LaunchedEffect(Unit) {
         try {
             val txt = URL("https://raw.githubusercontent.com/LuntikVisuals/Snake2D/main/leaderboard.json").readText()
@@ -458,35 +407,24 @@ private fun TopScreen(store: ProgressStore, onBack: () -> Unit) {
                 LeaderEntry(o.getString("name"), o.getInt("score"), o.optString("mode", "CLASSIC"))
             }.sortedByDescending { it.score }.take(30)
             status = "Сеть · ${remote.size}"
-        } catch (_: Exception) {
-            status = "Сеть недоступна — локальный топ"
-        }
+        } catch (_: Exception) { status = "Сеть недоступна — локальный топ" }
     }
-
     val merged = (remote + local).sortedByDescending { it.score }.distinctBy { it.name + it.score }.take(30)
-
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())
-    ) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Топ игроков", color = G.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(status, color = G.Dim, fontSize = 12.sp)
         Spacer(Modifier.height(12.dp))
-        if (merged.isEmpty()) {
-            Text("Пока пусто. Сыграй партию!", color = G.Mute, fontSize = 14.sp)
-        } else {
-            merged.forEachIndexed { i, e ->
-                Panel {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${i + 1}. ${e.name}", color = G.Text, fontSize = 15.sp)
-                        Text("${e.score}", color = G.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Text(e.mode, color = G.Mute, fontSize = 11.sp)
+        if (merged.isEmpty()) Text("Пока пусто. Сыграй партию!", color = G.Mute, fontSize = 14.sp)
+        else merged.forEachIndexed { i, e ->
+            Panel {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("${i + 1}. ${e.name}", color = G.Text, fontSize = 15.sp)
+                    Text("${e.score}", color = G.Accent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.height(6.dp))
+                Text(e.mode, color = G.Mute, fontSize = 11.sp)
             }
+            Spacer(Modifier.height(6.dp))
         }
-        Spacer(Modifier.height(8.dp))
-        Text("Локальные очки всегда сохраняются. Глобальный список — leaderboard.json на GitHub.", color = G.Mute, fontSize = 11.sp)
         Spacer(Modifier.height(12.dp))
         ActionBtn("Назад") { onBack() }
     }
@@ -495,32 +433,16 @@ private fun TopScreen(store: ProgressStore, onBack: () -> Unit) {
 @Composable
 private fun ProfileScreen(store: ProgressStore, onChange: () -> Unit, onBack: () -> Unit) {
     var nick by remember { mutableStateOf(store.nickname) }
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)
-    ) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Text("Профиль", color = G.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         Text("Ник для топа", color = G.Mute, fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(G.Panel)
-                .border(1.dp, G.Border, RoundedCornerShape(12.dp)).padding(14.dp)
-        ) {
-            BasicTextField(
-                value = nick,
-                onValueChange = { nick = it.take(16) },
-                textStyle = TextStyle(color = G.Text, fontSize = 16.sp),
-                cursorBrush = SolidColor(G.Accent),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(G.Panel).border(1.dp, G.Border, RoundedCornerShape(12.dp)).padding(14.dp)) {
+            BasicTextField(value = nick, onValueChange = { nick = it.take(16) }, textStyle = TextStyle(color = G.Text, fontSize = 16.sp), cursorBrush = SolidColor(G.Accent), singleLine = true, modifier = Modifier.fillMaxWidth())
         }
         Spacer(Modifier.height(12.dp))
-        ActionBtn("Сохранить") {
-            store.nickname = nick
-            onChange()
-            onBack()
-        }
+        ActionBtn("Сохранить") { store.nickname = nick; onChange(); onBack() }
         Spacer(Modifier.height(8.dp))
         ActionBtn("Назад") { onBack() }
     }
@@ -536,34 +458,26 @@ private fun StatChip(label: String, value: String, color: Color) {
 
 @Composable
 private fun Panel(content: @Composable () -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(G.Panel)
-            .border(1.dp, G.Border, RoundedCornerShape(14.dp)).padding(14.dp)
-    ) { content() }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(G.Panel).border(1.dp, G.Border, RoundedCornerShape(14.dp)).padding(14.dp)) { content() }
 }
 
 @Composable
 private fun DirBtn(label: String, onClick: () -> Unit) {
-    Box(
-        Modifier.size(48.dp).clip(CircleShape).background(G.Panel).border(1.dp, G.Border, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) { Text(label, color = G.Accent, fontSize = 18.sp) }
+    Box(Modifier.size(48.dp).clip(CircleShape).background(G.Panel).border(1.dp, G.Border, CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(label, color = G.Accent, fontSize = 18.sp)
+    }
 }
 
 @Composable
 private fun ActionBtn(text: String, onClick: () -> Unit) {
-    Box(
-        Modifier.clip(RoundedCornerShape(12.dp)).background(G.Accent).clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 12.dp)
-    ) { Text(text, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(G.Accent).clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 12.dp)) {
+        Text(text, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
 }
 
 @Composable
 private fun SmallBtn(text: String, modifier: Modifier, onClick: () -> Unit) {
-    Box(
-        modifier.clip(RoundedCornerShape(12.dp)).background(G.Panel).border(1.dp, G.Border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick).padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center
-    ) { Text(text, color = G.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
+    Box(modifier.clip(RoundedCornerShape(12.dp)).background(G.Panel).border(1.dp, G.Border, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+        Text(text, color = G.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
 }
