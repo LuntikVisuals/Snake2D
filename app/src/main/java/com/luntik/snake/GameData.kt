@@ -7,9 +7,22 @@ enum class Rarity(val title: String, val color: Long, val weight: Int) {
     LEGENDARY("Легендарная", 0xFFFFA726, 5)
 }
 
-enum class GameMode(val title: String, val desc: String, val speedMs: Long, val coinMul: Float, val xpMul: Float) {
-    CLASSIC("Классика", "Обычная скорость, стены убивают", 140L, 1f, 1f),
-    SPEED("Скорость", "Быстрее, больше монет и XP", 90L, 1.6f, 1.5f)
+enum class GameMode(
+    val title: String,
+    val desc: String,
+    val speedMs: Long,
+    val coinMul: Float,
+    val xpMul: Float,
+    val wallsKill: Boolean = true,
+    val hasObstacles: Boolean = false,
+    val timeLimitSec: Int? = null
+) {
+    CLASSIC("Классика", "Обычная скорость, стены убивают", 140L, 1f, 1f, wallsKill = true),
+    SPEED("Скорость", "Быстрее, больше монет и XP", 90L, 1.6f, 1.5f, wallsKill = true),
+    NO_WALLS("Без стен", "Выход с края — появление с другой стороны", 130L, 1.2f, 1.2f, wallsKill = false),
+    OBSTACLES("Препятствия", "На поле есть блоки, которых нужно избегать", 150L, 1.4f, 1.3f, wallsKill = true, hasObstacles = true),
+    TIME_ATTACK("На время", "60 секунд — набери максимум очков", 120L, 1.5f, 1.4f, wallsKill = true, timeLimitSec = 60),
+    FEEDING("Поедание", "Большая карта, 4 врага, кто съел больше", 110L, 2f, 1.8f, wallsKill = false)
 }
 
 data class SnakeSkin(
@@ -27,6 +40,13 @@ data class CaseType(
     val name: String,
     val price: Int,
     val weights: Map<Rarity, Int>
+)
+
+data class Achievement(
+    val id: String,
+    val title: String,
+    val description: String,
+    val rewardCoins: Int
 )
 
 object ShopData {
@@ -56,12 +76,23 @@ object ShopData {
         )
     )
 
+    val achievements = listOf(
+        Achievement("first_game", "Первый шаг", "Сыграй первую партию", 20),
+        Achievement("first_win", "Победитель", "Заполни поле полностью", 50),
+        Achievement("score_100", "Сотня", "Набери 100 очков за партию", 30),
+        Achievement("score_300", "Триста", "Набери 300 очков за партию", 80),
+        Achievement("length_20", "Длинный хвост", "Достигни длины 20", 40),
+        Achievement("open_3_cases", "Коллекционер", "Открой 3 кейса", 35),
+        Achievement("skins_5", "Стилист", "Разблокируй 5 скинов", 60)
+    )
+
     fun skin(id: String) = skins.find { it.id == id } ?: skins.first()
 
     fun openCase(type: CaseType): SnakeSkin {
-        val pool = type.weights.flatMap { (r, w) -> List(w) { r } }
+        val pool = type.weights.flatMap { (r, w) -> List(w.coerceAtLeast(0)) { r } }
+        if (pool.isEmpty()) return skins.first()
         val rarity = pool.random()
         val candidates = skins.filter { it.rarity == rarity }
-        return candidates.random()
+        return if (candidates.isNotEmpty()) candidates.random() else skins.random()
     }
 }
