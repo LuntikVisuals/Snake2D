@@ -5,13 +5,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 
 internal enum class RenderDir { UP, DOWN, LEFT, RIGHT }
 
 internal data class RenderCell(val x: Int, val y: Int)
 
+/**
+ * Full snake: continuous body path, taper, head with face/eyes/tongue.
+ */
 @Composable
 internal fun SmoothSnakeBoard(
     cols: Int,
@@ -21,7 +31,9 @@ internal fun SmoothSnakeBoard(
     dir: RenderDir,
     headColor: Color,
     bodyColor: Color,
-    foodColor: Color = Color(0xFFFF5252)
+    foodColor: Color = Color(0xFFFF5252),
+    progress: Float = 1f,
+    obstacles: Set<RenderCell> = emptySet()
 ) {
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width / cols
@@ -35,76 +47,151 @@ internal fun SmoothSnakeBoard(
                 radius = size.maxDimension * 0.75f
             )
         )
-
         for (x in 0 until cols) {
             for (y in 0 until rows) {
-                drawCircle(
-                    Color.White.copy(alpha = 0.035f),
-                    radius = 1.3f,
-                    center = Offset(x * cw + cw / 2, y * ch + ch / 2)
-                )
+                drawCircle(Color.White.copy(alpha = 0.03f), 1.2f, Offset(x * cw + cw / 2f, y * ch + ch / 2f))
             }
         }
-
-        val fx = food.x * cw + cw / 2
-        val fy = food.y * ch + ch / 2
-        drawCircle(foodColor.copy(alpha = 0.18f), cell * 0.58f, Offset(fx, fy))
-        drawCircle(foodColor.copy(alpha = 0.4f), cell * 0.4f, Offset(fx, fy))
+        for (o in obstacles) {
+            val ox = o.x * cw + cw * 0.15f
+            val oy = o.y * ch + ch * 0.15f
+            drawRoundRect(
+                Color(0xFF3A4555),
+                Offset(ox, oy),
+                Size(cw * 0.7f, ch * 0.7f),
+                androidx.compose.ui.geometry.CornerRadius(cell * 0.12f, cell * 0.12f)
+            )
+        }
+        val fx = food.x * cw + cw / 2f
+        val fy = food.y * ch + ch / 2f
+        drawCircle(foodColor.copy(alpha = 0.2f), cell * 0.55f, Offset(fx, fy))
         drawCircle(
             Brush.radialGradient(
                 listOf(Color(0xFFFF8A80), foodColor, Color(0xFFB71C1C)),
-                center = Offset(fx - cell * 0.1f, fy - cell * 0.1f),
-                radius = cell * 0.35f
+                center = Offset(fx - cell * 0.08f, fy - cell * 0.08f),
+                radius = cell * 0.32f
             ),
-            radius = cell * 0.3f,
-            center = Offset(fx, fy)
+            cell * 0.28f,
+            Offset(fx, fy)
         )
-        drawCircle(Color.White.copy(alpha = 0.55f), cell * 0.08f, Offset(fx - cell * 0.09f, fy - cell * 0.11f))
+        drawCircle(Color.White.copy(alpha = 0.55f), cell * 0.07f, Offset(fx - cell * 0.08f, fy - cell * 0.1f))
 
-        for (i in snake.lastIndex downTo 0) {
-            val c = snake[i]
-            val cx = c.x * cw + cw / 2
-            val cy = c.y * ch + ch / 2
-            val t = i.toFloat() / snake.size.coerceAtLeast(1)
-            val r = if (i == 0) cell * 0.44f else cell * (0.38f - t * 0.07f).coerceAtLeast(0.2f)
-            val col = if (i == 0) headColor else bodyColor.copy(alpha = (0.95f - t * 0.35f).coerceAtLeast(0.4f))
+        if (snake.isEmpty()) return@Canvas
 
-            drawCircle(Color.Black.copy(alpha = 0.28f), r * 1.08f, Offset(cx + 1.8f, cy + 2.2f))
-            drawCircle(col, r, Offset(cx, cy))
-            drawCircle(
-                Color.White.copy(alpha = if (i == 0) 0.25f else 0.1f),
-                r * 0.32f,
-                Offset(cx - r * 0.28f, cy - r * 0.3f)
+        fun centerOf(c: RenderCell) = Offset(c.x * cw + cw / 2f, c.y * ch + ch / 2f)
+        val points = ArrayList<Offset>(snake.size)
+        val head = snake.first()
+        val p = progress.coerceIn(0f, 1f)
+        val headBase = centerOf(head)
+        if (snake.size == 1) {
+            points.add(headBase)
+        } else {
+            val neck = centerOf(snake[1])
+            points.add(
+                Offset(
+                    neck.x + (headBase.x - neck.x) * (0.55f + 0.45f * p),
+                    neck.y + (headBase.y - neck.y) * (0.55f + 0.45f * p)
+                )
             )
+            for (i in 1 until snake.size) points.add(centerOf(snake[i]))
+        }
 
-            if (i == 0) {
-                val eyeR = cell * 0.075f
-                val ox = when (dir) {
-                    RenderDir.LEFT -> -cell * 0.14f
-                    RenderDir.RIGHT -> cell * 0.14f
-                    else -> 0f
-                }
-                val oy = when (dir) {
-                    RenderDir.UP -> -cell * 0.14f
-                    RenderDir.DOWN -> cell * 0.14f
-                    else -> 0f
-                }
-                val side = cell * 0.12f
-                val px = when (dir) {
-                    RenderDir.UP, RenderDir.DOWN -> side
-                    else -> 0f
-                }
-                val py = when (dir) {
-                    RenderDir.LEFT, RenderDir.RIGHT -> side
-                    else -> 0f
-                }
-                val ex = cx + ox
-                val ey = cy + oy
-                drawCircle(Color.White, eyeR * 1.35f, Offset(ex - px, ey - py))
-                drawCircle(Color.White, eyeR * 1.35f, Offset(ex + px, ey + py))
-                drawCircle(Color(0xFF0A1410), eyeR * 0.7f, Offset(ex - px + ox * 0.2f, ey - py + oy * 0.2f))
-                drawCircle(Color(0xFF0A1410), eyeR * 0.7f, Offset(ex + px + ox * 0.2f, ey + py + oy * 0.2f))
+        val bodyPath = Path()
+        if (points.size == 1) {
+            bodyPath.moveTo(points[0].x, points[0].y)
+            bodyPath.lineTo(points[0].x + 0.1f, points[0].y)
+        } else {
+            bodyPath.moveTo(points.last().x, points.last().y)
+            for (i in points.lastIndex downTo 1) {
+                val a = points[i]
+                val b = points[i - 1]
+                bodyPath.quadraticBezierTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
             }
+            bodyPath.lineTo(points[0].x, points[0].y)
+        }
+
+        val maxStroke = cell * 0.72f
+        val minStroke = cell * 0.28f
+
+        drawPath(
+            bodyPath,
+            Color.Black.copy(alpha = 0.35f),
+            style = Stroke(width = maxStroke * 1.08f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawPath(
+            bodyPath,
+            brush = Brush.linearGradient(listOf(bodyColor.copy(alpha = 0.85f), bodyColor, headColor.copy(alpha = 0.9f))),
+            style = Stroke(width = maxStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawPath(
+            bodyPath,
+            Color.White.copy(alpha = 0.14f),
+            style = Stroke(width = maxStroke * 0.35f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawPath(
+            bodyPath,
+            bodyColor.copy(alpha = 0.35f),
+            style = Stroke(
+                width = maxStroke * 0.55f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(cell * 0.35f, cell * 0.22f), 0f)
+            )
+        )
+
+        val hp = points[0]
+        val angleDeg = when (dir) {
+            RenderDir.UP -> -90f
+            RenderDir.DOWN -> 90f
+            RenderDir.LEFT -> 180f
+            RenderDir.RIGHT -> 0f
+        }
+        val headR = cell * 0.42f
+        rotate(angleDeg, hp) {
+            drawOval(
+                brush = Brush.radialGradient(
+                    listOf(headColor, bodyColor.copy(alpha = 0.95f)),
+                    center = Offset(hp.x - headR * 0.15f, hp.y - headR * 0.15f),
+                    radius = headR * 1.2f
+                ),
+                topLeft = Offset(hp.x - headR * 1.05f, hp.y - headR * 0.85f),
+                size = Size(headR * 2.15f, headR * 1.7f)
+            )
+            drawOval(
+                Color.White.copy(alpha = 0.22f),
+                topLeft = Offset(hp.x - headR * 0.55f, hp.y - headR * 0.55f),
+                size = Size(headR * 0.7f, headR * 0.4f)
+            )
+            val eyeY = hp.y - headR * 0.12f
+            val eyeX = headR * 0.28f
+            val eyeR = cell * 0.11f
+            drawCircle(Color.White, eyeR, Offset(hp.x + headR * 0.35f, eyeY - eyeX * 0.5f))
+            drawCircle(Color.White, eyeR, Offset(hp.x + headR * 0.35f, eyeY + eyeX * 0.5f))
+            drawCircle(Color(0xFF0A1410), eyeR * 0.55f, Offset(hp.x + headR * 0.42f, eyeY - eyeX * 0.5f))
+            drawCircle(Color(0xFF0A1410), eyeR * 0.55f, Offset(hp.x + headR * 0.42f, eyeY + eyeX * 0.5f))
+            val tongue = Path().apply {
+                moveTo(hp.x + headR * 1.0f, hp.y)
+                lineTo(hp.x + headR * 1.45f, hp.y - headR * 0.12f)
+                moveTo(hp.x + headR * 1.0f, hp.y)
+                lineTo(hp.x + headR * 1.45f, hp.y + headR * 0.12f)
+            }
+            drawPath(tongue, Color(0xFFFF5252), style = Stroke(width = cell * 0.06f, cap = StrokeCap.Round))
+        }
+
+        if (points.size >= 2) {
+            val tail = points.last()
+            val before = points[points.lastIndex - 1]
+            val tx = tail.x - before.x
+            val ty = tail.y - before.y
+            val len = kotlin.math.sqrt(tx * tx + ty * ty).coerceAtLeast(1f)
+            drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, tail)
+            drawLine(
+                bodyColor.copy(alpha = 0.5f),
+                tail,
+                Offset(tail.x + tx / len * cell * 0.2f, tail.y + ty / len * cell * 0.2f),
+                strokeWidth = minStroke * 0.4f,
+                cap = StrokeCap.Round
+            )
         }
     }
 }
