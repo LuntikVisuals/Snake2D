@@ -11,7 +11,7 @@ android {
         applicationId = "com.luntik.snake"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
+        versionCode = 3
         versionName = "2.0.0-beta"
     }
     buildTypes {
@@ -38,6 +38,5 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-
     testImplementation("junit:junit:4.13.2")
 }
