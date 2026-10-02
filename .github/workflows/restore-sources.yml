@@ -1,0 +1,33 @@
+name: Restore full sources
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/payload/**'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild Kotlin sources from payload
+        run: |
+          set -e
+          mkdir -p app/src/main/java/com/luntik/snake
+          for f in MainActivity.kt UiScreens.kt FeedingScreens.kt; do
+            cat tools/payload/${f}.b64.* 2>/dev/null | tr -d '\n' | base64 -d > "app/src/main/java/com/luntik/snake/$f"
+            echo "Restored $f ($(wc -c < app/src/main/java/com/luntik/snake/$f) bytes)"
+          done
+          head -5 app/src/main/java/com/luntik/snake/MainActivity.kt
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/luntik/snake/MainActivity.kt app/src/main/java/com/luntik/snake/UiScreens.kt app/src/main/java/com/luntik/snake/FeedingScreens.kt
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "v2.0.0-beta: restore full MainActivity, UiScreens, FeedingScreens"
+            git push
+          fi
