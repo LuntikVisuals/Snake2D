@@ -97,7 +97,7 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onR
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("SNAKE2D", color = C.mint, fontSize = 32.sp, fontWeight = FontWeight.Black)
-        Text("BETA · liquid glass", color = C.muted, fontSize = 12.sp)
+        Text("BETA · liquid glass · full body", color = C.muted, fontSize = 12.sp)
         Glass(Modifier.fillMaxWidth()) {
             Text("${store.nickname} · ур.${store.level}", color = C.text, fontWeight = FontWeight.Bold)
             Text("${store.coins} монет · ${store.xp} XP", color = C.gold, fontSize = 14.sp)
@@ -122,7 +122,7 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onR
             }
         }
         Glass(Modifier.fillMaxWidth()) {
-            Text("Поедание / DeltaSnake2D — следующий этап. Античит и файлы игры уже активны.", color = C.muted, fontSize = 12.sp)
+            Text("Магазин, кейсы, Поедание — в следующих билдах. Змейка уже цельное тело.", color = C.muted, fontSize = 12.sp)
         }
     }
 }
@@ -156,10 +156,10 @@ private fun Play(store: ProgressStore, mode: GameMode, onExit: () -> Unit) {
         val foodEaten = score / 10
         val dur = System.currentTimeMillis() - startMs
         val fair = AntiCheat.validateScore(score, dur, foodEaten)
-        val coins = (score * mode.coinMul).toInt().coerceAtLeast(if (score > 0) 5 else 0)
+        val coins = (score * mode.coinMul).toInt().coerceAtLeast(if (score > 0) 3 else 0)
         if (fair) {
             store.addCoins(coins, "Партия ${mode.title}")
-            store.addXp((score * mode.xpMul).toInt().coerceAtLeast(5))
+            store.addXp((score * mode.xpMul).toInt().coerceAtLeast(3))
             store.pushScore(store.nickname, score, mode.name)
         }
         store.recordGameEnd(false, foodEaten, snake.size)
@@ -229,14 +229,21 @@ private fun Play(store: ProgressStore, mode: GameMode, onExit: () -> Unit) {
                         )
                     }
             ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val cw = size.width / COLS; val ch = size.height / ROWS
-                    drawCircle(C.red, minOf(cw, ch) * 0.3f, Offset((food.x + 0.5f) * cw, (food.y + 0.5f) * ch))
-                    snake.forEachIndexed { i, s ->
-                        val col = if (i == 0) Color(skin.headColor) else Color(skin.bodyColor)
-                        drawCircle(col, minOf(cw, ch) * (if (i == 0) 0.42f else 0.34f), Offset((s.x + 0.5f) * cw, (s.y + 0.5f) * ch))
-                    }
-                }
+                SmoothSnakeBoard(
+                    cols = COLS,
+                    rows = ROWS,
+                    snake = snake.map { RenderCell(it.x, it.y) },
+                    food = RenderCell(food.x, food.y),
+                    dir = when (dir) {
+                        Dir.UP -> RenderDir.UP
+                        Dir.DOWN -> RenderDir.DOWN
+                        Dir.LEFT -> RenderDir.LEFT
+                        Dir.RIGHT -> RenderDir.RIGHT
+                    },
+                    headColor = Color(skin.headColor),
+                    bodyColor = Color(skin.bodyColor),
+                    progress = 1f
+                )
                 if (phase != Phase.RUN) {
                     Box(Modifier.fillMaxSize().background(Color(0x99070D16)), contentAlignment = Alignment.Center) {
                         Glass(Modifier.fillMaxWidth(0.85f)) {
