@@ -1,6 +1,8 @@
 package com.luntik.snake
 
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,7 +12,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -19,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +38,7 @@ const val APP_TITLE = "Snake2D 2.0.0.1 Beta"
 
 internal enum class Dir { UP, DOWN, LEFT, RIGHT }
 internal enum class Phase { READY, RUN, DEAD }
-internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED }
+internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED, SETTINGS, REGISTER }
 internal data class Cell(val x: Int, val y: Int)
 
 internal object C {
@@ -49,59 +56,96 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         GameFiles.ensureLayout(this)
         val store = ProgressStore(this)
+        applyFrameRate(store.targetFps)
         AntiCheat.scan(this, store).also { GameFiles.writeSessionLog(this, "boot ${it.detail}") }
-        setContent { App(store) }
+        setContent { App(store, onFps = { applyFrameRate(it) }) }
+    }
+
+    private fun applyFrameRate(fps: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val rates = display?.supportedModes?.map { it.refreshRate } ?: emptyList()
+                val best = rates.minByOrNull { kotlin.math.abs(it - fps.toFloat()) }
+                val mode = display?.supportedModes?.firstOrNull { it.refreshRate == best }
+                if (mode != null) window.attributes = window.attributes.apply { preferredDisplayModeId = mode.modeId }
+            } catch (_: Exception) { }
+        }
     }
 }
 
 @Composable
-private fun App(store: ProgressStore) {
-    var scr by remember { mutableStateOf(Scr.HUB) }
+private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
+    var scr by remember { mutableStateOf(if (!store.registered) Scr.REGISTER else Scr.HUB) }
     var mode by remember { mutableStateOf(GameMode.CLASSIC) }
     var tick by remember { mutableIntStateOf(0) }
+    fun refresh() { tick++ }
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A1320), C.bg, Color(0xFF090D16))))) {
         when (scr) {
+            Scr.REGISTER -> Register(store) { store.registered = true; store.saveBackup(); scr = Scr.HUB }
             Scr.HUB -> Hub(store, tick,
                 onPlay = { mode = it; if (it == GameMode.FEEDING) scr = Scr.CHARS else scr = Scr.PLAY },
                 onShop = { scr = Scr.SHOP }, onCases = { scr = Scr.CASES }, onChars = { scr = Scr.CHARS },
-                onRefresh = { tick++ })
-            Scr.PLAY -> ClassicPlay(store, mode) { tick++; store.saveBackup(); scr = Scr.HUB }
-            Scr.SHOP -> Shop(store, { tick++ }) { scr = Scr.HUB }
-            Scr.CASES -> Cases(store, { tick++ }) { scr = Scr.HUB }
-            Scr.CHARS -> Chars(store, { tick++ }, onPlay = { scr = Scr.FEED }, onBack = { scr = Scr.HUB })
-            Scr.FEED -> FeedingPlay(store) { tick++; store.saveBackup(); scr = Scr.HUB }
+                onSettings = { scr = Scr.SETTINGS }, onRefresh = { refresh() })
+            Scr.PLAY -> ClassicPlay(store, mode) { refresh(); store.saveBackup(); scr = Scr.HUB }
+            Scr.SHOP -> key(tick) { Shop(store, { refresh() }) { scr = Scr.HUB } }
+            Scr.CASES -> key(tick) { Cases(store, { refresh() }) { scr = Scr.HUB } }
+            Scr.CHARS -> key(tick) { Chars(store, { refresh() }, onPlay = { scr = Scr.FEED }, onBack = { scr = Scr.HUB }) }
+            Scr.FEED -> FeedingPlay(store) { refresh(); store.saveBackup(); scr = Scr.HUB }
+            Scr.SETTINGS -> Settings(store, onFps) { refresh(); scr = Scr.HUB }
         }
     }
 }
 
 @Composable
 internal fun Glass(mod: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        mod.clip(RoundedCornerShape(18.dp))
-            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.04f))))
-            .border(1.dp, C.line, RoundedCornerShape(18.dp)).padding(14.dp),
-        content = content
-    )
+    Column(mod.clip(RoundedCornerShape(18.dp))
+        .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.04f))))
+        .border(1.dp, C.line, RoundedCornerShape(18.dp)).padding(14.dp), content = content)
 }
 
 @Composable
-private fun Hub(
-    store: ProgressStore, tick: Int,
-    onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onRefresh: () -> Unit
-) {
-    @Suppress("UNUSED_VARIABLE") val t = tick
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+private fun Register(store: ProgressStore, onDone: () -> Unit) {
+    var name by remember { mutableStateOf(store.nickname) }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(APP_TITLE, color = C.mint, fontSize = 26.sp, fontWeight = FontWeight.Black)
-        Text("liquid glass · smooth body", color = C.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+        Text("Регистрация игрока", color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Никнейм", color = C.muted, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(value = name, onValueChange = { name = it.take(16) },
+                textStyle = TextStyle(color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                cursorBrush = SolidColor(C.mint),
+                modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(Brush.horizontalGradient(listOf(C.mint, C.cyan)))
+            .clickable { store.nickname = name.ifBlank { "Игрок" }; store.registered = true; store.saveBackup(); onDone() }
+            .padding(16.dp), contentAlignment = Alignment.Center) {
+            Text("НАЧАТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onSettings: () -> Unit, onRefresh: () -> Unit) {
+    @Suppress("UNUSED_VARIABLE") val t = tick
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text(APP_TITLE, color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+                Text("${store.targetFps} Hz · ${if (store.showGrid) "сетка" else "без сетки"}", color = C.muted, fontSize = 11.sp)
+            }
+            Text("⚙", color = C.text, fontSize = 26.sp, modifier = Modifier.clickable(onClick = onSettings))
+        }
         Glass(Modifier.fillMaxWidth()) {
             Text("${store.nickname} · ур.${store.level}", color = C.text, fontWeight = FontWeight.Bold)
             Text("${store.coins} монет · ${store.xp} XP", color = C.gold, fontSize = 14.sp)
-            Text("Бэкап: Android/data/…/files/snake2d/", color = C.muted, fontSize = 10.sp)
         }
         if (store.canClaimDaily()) {
             Glass(Modifier.fillMaxWidth().clickable { store.claimDaily(); store.saveBackup(); onRefresh() }) {
@@ -114,16 +158,13 @@ private fun Hub(
         }
         Glass(Modifier.fillMaxWidth().clickable(onClick = onChars)) {
             Text("ПЕРСОНАЖИ · ПОЕДАНИЕ", color = C.text, fontWeight = FontWeight.Bold)
-            Text("Враги · ульта · ивенты", color = C.muted, fontSize = 12.sp)
+            Text("Превью · ульта · враги", color = C.muted, fontSize = 12.sp)
         }
         Text("РЕЖИМЫ", color = C.muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         GameMode.entries.forEach { m ->
             Glass(Modifier.fillMaxWidth().clickable { onPlay(m) }) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(m.title, color = C.text, fontWeight = FontWeight.Bold)
-                        Text(m.desc, color = C.muted, fontSize = 12.sp)
-                    }
+                    Column { Text(m.title, color = C.text, fontWeight = FontWeight.Bold); Text(m.desc, color = C.muted, fontSize = 12.sp) }
                     Text("▶", color = C.mint, fontSize = 20.sp)
                 }
             }
@@ -132,15 +173,69 @@ private fun Hub(
 }
 
 @Composable
+private fun Settings(store: ProgressStore, onFps: (Int) -> Unit, onBack: () -> Unit) {
+    var nick by remember { mutableStateOf(store.nickname) }
+    var grid by remember { mutableStateOf(store.showGrid) }
+    var fps by remember { mutableIntStateOf(store.targetFps) }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
+        Text("НАСТРОЙКИ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Никнейм", color = C.muted, fontSize = 12.sp)
+            BasicTextField(value = nick, onValueChange = { nick = it.take(16) }, textStyle = TextStyle(color = C.text, fontSize = 16.sp), cursorBrush = SolidColor(C.mint), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(C.cyan.copy(alpha = 0.25f)).clickable { store.nickname = nick; store.saveBackup() }.padding(10.dp)) {
+                Text("Сохранить ник", color = C.cyan, fontWeight = FontWeight.Bold)
+            }
+        }
+        Glass(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column { Text("Сетка на поле", color = C.text, fontWeight = FontWeight.Bold); Text("Удобнее видеть клетки", color = C.muted, fontSize = 12.sp) }
+                Switch(checked = grid, onCheckedChange = { grid = it; store.showGrid = it }, colors = SwitchDefaults.colors(checkedTrackColor = C.mint, checkedThumbColor = Color.White))
+            }
+        }
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Частота кадров", color = C.text, fontWeight = FontWeight.Bold)
+            Text("60 / 120 / 144 Гц", color = C.muted, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(60, 120, 144).forEach { v ->
+                    val sel = fps == v
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .background(if (sel) Brush.horizontalGradient(listOf(C.mint, C.cyan)) else Brush.horizontalGradient(listOf(Color(0xFF1C2B3B), Color(0xFF1C2B3B))))
+                        .clickable { fps = v; store.targetFps = v; onFps(v) }.padding(12.dp), contentAlignment = Alignment.Center) {
+                        Text("${v} Hz", color = if (sel) Color(0xFF062016) else C.text, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Персонализация", color = C.text, fontWeight = FontWeight.Bold)
+            Text("Liquid glass · тёмная тема · скины в магазине", color = C.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
 private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
+    var selected by remember { mutableStateOf(store.selectedSkin) }
+    var coins by remember { mutableIntStateOf(store.coins) }
+    var unlocked by remember { mutableStateOf(store.unlockedSkins()) }
+    var previewId by remember { mutableStateOf(selected) }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("МАГАЗИН", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
-        Text("${store.coins} монет", color = C.gold, fontSize = 13.sp)
+        Text("$coins монет", color = C.gold, fontSize = 13.sp)
+        val prev = ShopData.skin(previewId)
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Превью: ${prev.name}", color = C.text, fontWeight = FontWeight.Bold)
+            Text(prev.rarity.title, color = Color(prev.rarity.color), fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            SkinPreview(Color(prev.headColor), Color(prev.bodyColor), Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0B1420)))
+        }
         ShopData.skins.forEach { skin ->
-            val unlocked = store.isUnlocked(skin.id)
-            val selected = store.selectedSkin == skin.id
-            Glass(Modifier.fillMaxWidth()) {
+            val isUnlocked = skin.id in unlocked
+            val isSelected = selected == skin.id
+            Glass(Modifier.fillMaxWidth().clickable { previewId = skin.id }) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color(skin.bodyColor)).border(2.dp, Color(skin.headColor), RoundedCornerShape(10.dp)))
                     Spacer(Modifier.width(10.dp))
@@ -149,15 +244,15 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                         Text(skin.rarity.title, color = Color(skin.rarity.color), fontSize = 12.sp)
                     }
                     when {
-                        selected -> Text("НАДЕТ", color = C.mint, fontSize = 12.sp)
-                        unlocked -> Text("НАДЕТЬ", color = C.cyan, fontSize = 12.sp, modifier = Modifier.clickable {
-                            store.selectedSkin = skin.id; store.saveBackup(); onChanged()
+                        isSelected -> Text("НАДЕТ", color = C.mint, fontSize = 12.sp)
+                        isUnlocked -> Text("НАДЕТЬ", color = C.cyan, fontSize = 12.sp, modifier = Modifier.clickable {
+                            store.selectedSkin = skin.id; selected = skin.id; previewId = skin.id; store.saveBackup(); onChanged()
                         })
-                        skin.unlockOnlyCase -> Text("ТОЛЬКО КЕЙС", color = C.muted, fontSize = 11.sp)
+                        skin.unlockOnlyCase -> Text("КЕЙС", color = C.muted, fontSize = 11.sp)
                         else -> Text("${skin.price}", color = C.gold, fontSize = 13.sp, modifier = Modifier.clickable {
                             if (store.spendCoins(skin.price, "Скин ${skin.name}")) {
-                                store.unlockSkin(skin.id); store.selectedSkin = skin.id
-                                store.logPurchase(skin.name, skin.price); store.saveBackup(); onChanged()
+                                store.unlockSkin(skin.id); store.selectedSkin = skin.id; store.logPurchase(skin.name, skin.price); store.saveBackup()
+                                unlocked = store.unlockedSkins(); selected = skin.id; coins = store.coins; previewId = skin.id; onChanged()
                             }
                         })
                     }
@@ -170,33 +265,32 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
 @Composable
 private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
+    var coins by remember { mutableIntStateOf(store.coins) }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("КЕЙСЫ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
-        Text("${store.coins} монет · ${ShopData.cases.size} типов", color = C.gold)
+        Text("$coins монет · ${ShopData.cases.size} типов", color = C.gold)
         ShopData.cases.forEach { c ->
+            val total = c.weights.values.sum().coerceAtLeast(1)
             Glass(Modifier.fillMaxWidth()) {
                 Text(c.name, color = C.text, fontWeight = FontWeight.Bold)
                 Text("${c.price} монет", color = C.gold, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("Шансы:", color = C.muted, fontSize = 11.sp)
+                c.weights.entries.sortedByDescending { it.value }.forEach { (r, w) ->
+                    Text("  ${r.title}: ${w * 100 / total}%", color = Color(r.color), fontSize = 12.sp)
+                }
                 Spacer(Modifier.height(8.dp))
-                Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(Brush.horizontalGradient(listOf(C.mint, C.cyan)))
-                        .clickable {
-                            if (!store.spendCoins(c.price, "Кейс ${c.name}")) { msg = "Мало монет"; return@clickable }
-                            val drop = ShopData.openCase(c)
-                            val dup = store.isUnlocked(drop.id)
-                            if (dup) {
-                                store.addCoins(20, "Дубликат ${drop.name}")
-                                msg = "Дубликат ${drop.name} (+20)"
-                            } else {
-                                store.unlockSkin(drop.id)
-                                msg = "Выпало: ${drop.name} [${drop.rarity.title}]"
-                            }
-                            store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup(); onChanged()
-                        }.padding(12.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text("ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black) }
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable {
+                    if (!store.spendCoins(c.price, "Кейс ${c.name}")) { msg = "Мало монет"; return@clickable }
+                    val drop = ShopData.openCase(c)
+                    val dup = store.isUnlocked(drop.id)
+                    if (dup) { store.addCoins(20, "Дубликат ${drop.name}"); msg = "Дубликат ${drop.name} (+20)" }
+                    else { store.unlockSkin(drop.id); msg = "Выпало: ${drop.name} [${drop.rarity.title}]" }
+                    store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup(); coins = store.coins; onChanged()
+                }.padding(12.dp), contentAlignment = Alignment.Center) {
+                    Text("ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                }
             }
         }
         if (msg.isNotEmpty()) Text(msg, color = C.muted, fontSize = 13.sp)
@@ -205,12 +299,13 @@ private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Uni
 
 @Composable
 private fun Chars(store: ProgressStore, onChanged: () -> Unit, onPlay: () -> Unit, onBack: () -> Unit) {
+    var selected by remember { mutableStateOf(store.selectedCharacter) }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("ПЕРСОНАЖИ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         CharacterData.all.forEach { ch ->
             val unlocked = store.isCharacterUnlocked(ch.id)
-            val selected = store.selectedCharacter == ch.id
+            val isSel = selected == ch.id
             Glass(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(ch.bodyColor)).border(2.dp, Color(ch.headColor), RoundedCornerShape(12.dp)))
@@ -227,23 +322,20 @@ private fun Chars(store: ProgressStore, onChanged: () -> Unit, onPlay: () -> Uni
                 }
                 Spacer(Modifier.height(8.dp))
                 when {
-                    selected -> Text("ВЫБРАН", color = C.mint, fontWeight = FontWeight.Bold)
+                    isSel -> Text("ВЫБРАН", color = C.mint, fontWeight = FontWeight.Bold)
                     unlocked -> Text("ВЫБРАТЬ", color = C.cyan, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
-                        store.selectedCharacter = ch.id; store.saveBackup(); onChanged()
+                        store.selectedCharacter = ch.id; selected = ch.id; store.saveBackup(); onChanged()
                     })
                     else -> Text("КУПИТЬ ${ch.unlockPrice}", color = C.gold, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
                         if (store.spendCoins(ch.unlockPrice, "Персонаж ${ch.name}")) {
-                            store.unlockCharacter(ch.id); store.selectedCharacter = ch.id; store.saveBackup(); onChanged()
+                            store.unlockCharacter(ch.id); store.selectedCharacter = ch.id; selected = ch.id; store.saveBackup(); onChanged()
                         }
                     })
                 }
             }
         }
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .background(Brush.horizontalGradient(listOf(C.mint, C.cyan)))
-                .clickable(onClick = onPlay).padding(14.dp),
-            contentAlignment = Alignment.Center
-        ) { Text("ИГРАТЬ В ПОЕДАНИЕ", color = Color(0xFF062016), fontWeight = FontWeight.Black) }
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable(onClick = onPlay).padding(14.dp), contentAlignment = Alignment.Center) {
+            Text("ИГРАТЬ В ПОЕДАНИЕ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+        }
     }
 }
