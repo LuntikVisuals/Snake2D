@@ -62,18 +62,12 @@ object ShopData {
     )
 
     val cases = listOf(
-        CaseType(
-            "basic",
-            "Обычный кейс",
-            100,
-            mapOf(Rarity.COMMON to 55, Rarity.RARE to 30, Rarity.EPIC to 12, Rarity.LEGENDARY to 3)
-        ),
-        CaseType(
-            "rare",
-            "Редкий кейс",
-            250,
-            mapOf(Rarity.COMMON to 20, Rarity.RARE to 45, Rarity.EPIC to 25, Rarity.LEGENDARY to 10)
-        )
+        CaseType("basic", "Обычный кейс", 80, mapOf(Rarity.COMMON to 55, Rarity.RARE to 30, Rarity.EPIC to 12, Rarity.LEGENDARY to 3)),
+        CaseType("rare", "Редкий кейс", 150, mapOf(Rarity.COMMON to 35, Rarity.RARE to 40, Rarity.EPIC to 20, Rarity.LEGENDARY to 5)),
+        CaseType("premium", "Премиум кейс", 250, mapOf(Rarity.COMMON to 20, Rarity.RARE to 40, Rarity.EPIC to 28, Rarity.LEGENDARY to 12)),
+        CaseType("epic", "Эпический кейс", 400, mapOf(Rarity.COMMON to 10, Rarity.RARE to 30, Rarity.EPIC to 40, Rarity.LEGENDARY to 20)),
+        CaseType("legend", "Легендарный кейс", 600, mapOf(Rarity.COMMON to 5, Rarity.RARE to 20, Rarity.EPIC to 40, Rarity.LEGENDARY to 35)),
+        CaseType("void", "Кейс Бездны", 350, mapOf(Rarity.COMMON to 15, Rarity.RARE to 25, Rarity.EPIC to 35, Rarity.LEGENDARY to 25))
     )
 
     val achievements = listOf(
