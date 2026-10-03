@@ -24,25 +24,17 @@ class ProgressStore(ctx: Context) {
 
     init {
         migrateIfNeeded()
-        if (p.getInt("gamesPlayed", 0) == 0 && p.getInt("coins", 100) == 100 && p.getInt("xp", 0) == 0) {
-            restoreFromBackup()
-        } else {
-            saveBackup()
-        }
+        if (p.getInt("gamesPlayed", 0) == 0 && p.getInt("coins", 100) == 100 && p.getInt("xp", 0) == 0) restoreFromBackup()
+        else saveBackup()
     }
 
     private fun migrateIfNeeded() {
-        val current = p.getInt("schemaVersion", 1)
-        if (current < SCHEMA_VERSION) {
-            p.edit().putInt("schemaVersion", SCHEMA_VERSION).apply()
-        }
+        if (p.getInt("schemaVersion", 1) < SCHEMA_VERSION) p.edit().putInt("schemaVersion", SCHEMA_VERSION).apply()
     }
 
     val playerId: String
         get() = p.getString("playerId", null) ?: run {
-            val id = UUID.randomUUID().toString()
-            p.edit().putString("playerId", id).apply()
-            id
+            val id = UUID.randomUUID().toString(); p.edit().putString("playerId", id).apply(); id
         }
 
     var coins: Int
@@ -51,20 +43,13 @@ class ProgressStore(ctx: Context) {
 
     fun addCoins(n: Int, reason: String = "reward") {
         if (n <= 0) return
-        coins = coins + n
-        incrementStat("totalCoinsEarned", n)
-        appendHistory("reward", reason, n)
-        saveBackup()
+        coins = coins + n; incrementStat("totalCoinsEarned", n); appendHistory("reward", reason, n); saveBackup()
     }
 
     fun spendCoins(n: Int, reason: String = "spend"): Boolean {
         if (n <= 0) return true
         if (coins < n) return false
-        coins = coins - n
-        incrementStat("totalCoinsSpent", n)
-        appendHistory("spend", reason, -n)
-        saveBackup()
-        return true
+        coins = coins - n; incrementStat("totalCoinsSpent", n); appendHistory("spend", reason, -n); saveBackup(); return true
     }
 
     var xp: Int
@@ -72,15 +57,13 @@ class ProgressStore(ctx: Context) {
         set(v) = p.edit().putInt("xp", v.coerceAtLeast(0)).apply()
 
     val level: Int get() = 1 + xp / 100
-
     fun addXp(n: Int) { if (n > 0) { xp = xp + n; saveBackup() } }
 
     var nickname: String
         get() = p.getString("nick", "Игрок") ?: "Игрок"
         set(v) {
             val cleaned = v.trim().filter { it.isLetterOrDigit() || it in " _-." }.take(16).ifBlank { "Игрок" }
-            p.edit().putString("nick", cleaned).apply()
-            saveBackup()
+            p.edit().putString("nick", cleaned).apply(); saveBackup()
         }
 
     var selectedSkin: String
@@ -91,40 +74,39 @@ class ProgressStore(ctx: Context) {
         get() = p.getString("character", "basic") ?: "basic"
         set(v) { p.edit().putString("character", v).apply(); saveBackup() }
 
-    fun unlockedCharacters(): Set<String> =
-        (p.getStringSet("chars", setOf("basic")) ?: setOf("basic")) + "basic"
+    var showGrid: Boolean
+        get() = p.getBoolean("showGrid", false)
+        set(v) { p.edit().putBoolean("showGrid", v).apply(); saveBackup() }
 
+    var targetFps: Int
+        get() = p.getInt("targetFps", 120).coerceIn(60, 144)
+        set(v) { p.edit().putInt("targetFps", v.coerceIn(60, 144)).apply(); saveBackup() }
+
+    var registered: Boolean
+        get() = p.getBoolean("registered", false)
+        set(v) = p.edit().putBoolean("registered", v).apply()
+
+    fun unlockedCharacters(): Set<String> = (p.getStringSet("chars", setOf("basic")) ?: setOf("basic")) + "basic"
     fun unlockCharacter(id: String) {
         val set = unlockedCharacters().toMutableSet(); set.add(id)
         p.edit().putStringSet("chars", set).apply(); saveBackup()
     }
-
     fun isCharacterUnlocked(id: String) = id in unlockedCharacters()
-
-    fun unlockedSkins(): Set<String> =
-        (p.getStringSet("unlocked", setOf("default")) ?: setOf("default")) + "default"
-
+    fun unlockedSkins(): Set<String> = (p.getStringSet("unlocked", setOf("default")) ?: setOf("default")) + "default"
     fun unlockSkin(id: String) {
         val set = unlockedSkins().toMutableSet(); set.add(id)
         p.edit().putStringSet("unlocked", set).apply(); saveBackup()
     }
-
     fun isUnlocked(id: String) = id in unlockedSkins()
     fun bestScore(mode: String): Int = p.getInt("best_$mode", 0)
-    fun setBestScore(mode: String, score: Int) {
-        if (score > bestScore(mode)) p.edit().putInt("best_$mode", score).apply()
-    }
+    fun setBestScore(mode: String, score: Int) { if (score > bestScore(mode)) p.edit().putInt("best_$mode", score).apply() }
 
     fun pushScore(name: String, score: Int, mode: String) {
         if (score <= 0) return
-        val list = leaderboard().toMutableList()
-        list.add(LeaderEntry(name.take(16), score, mode))
+        val list = leaderboard().toMutableList(); list.add(LeaderEntry(name.take(16), score, mode))
         val top = list.sortedByDescending { it.score }.take(30)
-        val arr = JSONArray()
-        top.forEach { arr.put(JSONObject().put("name", it.name).put("score", it.score).put("mode", it.mode)) }
-        p.edit().putString("board", arr.toString()).apply()
-        setBestScore(mode, score)
-        saveBackup()
+        val arr = JSONArray(); top.forEach { arr.put(JSONObject().put("name", it.name).put("score", it.score).put("mode", it.mode)) }
+        p.edit().putString("board", arr.toString()).apply(); setBestScore(mode, score); saveBackup()
     }
 
     fun leaderboard(): List<LeaderEntry> {
@@ -139,19 +121,14 @@ class ProgressStore(ctx: Context) {
         } catch (_: Exception) { emptyList() }
     }
 
-    fun getStats(): Stats = Stats(
-        p.getInt("gamesPlayed", 0), p.getInt("wins", 0), p.getInt("losses", 0),
-        p.getInt("totalFoodEaten", 0), p.getInt("maxLength", 3),
-        p.getInt("totalCoinsEarned", 0), p.getInt("totalCoinsSpent", 0), p.getInt("casesOpened", 0)
-    )
+    fun getStats(): Stats = Stats(p.getInt("gamesPlayed", 0), p.getInt("wins", 0), p.getInt("losses", 0),
+        p.getInt("totalFoodEaten", 0), p.getInt("maxLength", 3), p.getInt("totalCoinsEarned", 0),
+        p.getInt("totalCoinsSpent", 0), p.getInt("casesOpened", 0))
 
-    private fun incrementStat(key: String, by: Int = 1) {
-        p.edit().putInt(key, p.getInt(key, 0) + by).apply()
-    }
+    private fun incrementStat(key: String, by: Int = 1) { p.edit().putInt(key, p.getInt(key, 0) + by).apply() }
 
     fun recordGameEnd(won: Boolean, foodEaten: Int, length: Int) {
-        incrementStat("gamesPlayed")
-        if (won) incrementStat("wins") else incrementStat("losses")
+        incrementStat("gamesPlayed"); if (won) incrementStat("wins") else incrementStat("losses")
         if (foodEaten > 0) incrementStat("totalFoodEaten", foodEaten)
         if (length > p.getInt("maxLength", 3)) p.edit().putInt("maxLength", length).apply()
         saveBackup()
@@ -186,9 +163,7 @@ class ProgressStore(ctx: Context) {
         else appendHistory("case", "Кейс $caseName → $dropName", 0)
     }
 
-    fun canClaimDaily(): Boolean =
-        (p.getString("lastDailyDay", "") ?: "") != java.time.LocalDate.now().toString()
-
+    fun canClaimDaily(): Boolean = (p.getString("lastDailyDay", "") ?: "") != java.time.LocalDate.now().toString()
     fun claimDaily(): Int {
         if (!canClaimDaily()) return 0
         val today = java.time.LocalDate.now().toString()
@@ -197,8 +172,7 @@ class ProgressStore(ctx: Context) {
         val newStreak = if ((p.getString("lastDailyDay", "") ?: "") == yesterday) streak + 1 else 1
         val reward = (15 + newStreak * 5).coerceAtMost(50)
         p.edit().putString("lastDailyDay", today).putInt("dailyStreak", newStreak).apply()
-        addCoins(reward, "Ежедневная награда (серия $newStreak)")
-        return reward
+        addCoins(reward, "Ежедневная награда (серия $newStreak)"); return reward
     }
 
     fun unlockedAchievements(): Set<String> = p.getStringSet("achievements", emptySet()) ?: emptySet()
@@ -207,9 +181,7 @@ class ProgressStore(ctx: Context) {
         if (isAchievementUnlocked(id)) return false
         val set = unlockedAchievements().toMutableSet(); set.add(id)
         p.edit().putStringSet("achievements", set).apply()
-        ShopData.achievements.find { it.id == id }?.let {
-            addCoins(it.rewardCoins, "Достижение: ${it.title}")
-        }
+        ShopData.achievements.find { it.id == id }?.let { addCoins(it.rewardCoins, "Достижение: ${it.title}") }
         return true
     }
 
@@ -238,21 +210,14 @@ class ProgressStore(ctx: Context) {
         try {
             val o = JSONObject()
             o.put("coins", coins).put("xp", xp).put("nick", nickname).put("skin", selectedSkin)
-                .put("character", selectedCharacter)
-                .put("unlocked", JSONArray(unlockedSkins().toList()))
-                .put("chars", JSONArray(unlockedCharacters().toList()))
-                .put("gamesPlayed", p.getInt("gamesPlayed", 0))
-                .put("wins", p.getInt("wins", 0)).put("losses", p.getInt("losses", 0))
-                .put("totalFoodEaten", p.getInt("totalFoodEaten", 0))
-                .put("maxLength", p.getInt("maxLength", 3))
-                .put("totalCoinsEarned", p.getInt("totalCoinsEarned", 0))
-                .put("totalCoinsSpent", p.getInt("totalCoinsSpent", 0))
-                .put("casesOpened", p.getInt("casesOpened", 0))
-                .put("playerId", playerId)
-                .put("history", p.getString("history", "[]"))
-                .put("lastDailyDay", p.getString("lastDailyDay", ""))
-            val bests = JSONObject()
-            GameMode.entries.forEach { bests.put(it.name, bestScore(it.name)) }
+                .put("character", selectedCharacter).put("showGrid", showGrid).put("targetFps", targetFps).put("registered", registered)
+                .put("unlocked", JSONArray(unlockedSkins().toList())).put("chars", JSONArray(unlockedCharacters().toList()))
+                .put("gamesPlayed", p.getInt("gamesPlayed", 0)).put("wins", p.getInt("wins", 0)).put("losses", p.getInt("losses", 0))
+                .put("totalFoodEaten", p.getInt("totalFoodEaten", 0)).put("maxLength", p.getInt("maxLength", 3))
+                .put("totalCoinsEarned", p.getInt("totalCoinsEarned", 0)).put("totalCoinsSpent", p.getInt("totalCoinsSpent", 0))
+                .put("casesOpened", p.getInt("casesOpened", 0)).put("playerId", playerId)
+                .put("history", p.getString("history", "[]")).put("lastDailyDay", p.getString("lastDailyDay", ""))
+            val bests = JSONObject(); GameMode.entries.forEach { bests.put(it.name, bestScore(it.name)) }
             o.put("bests", bests).put("savedAt", System.currentTimeMillis())
             GameFiles.writeProgressBackup(appCtx, o.toString())
         } catch (_: Exception) { }
@@ -262,36 +227,22 @@ class ProgressStore(ctx: Context) {
         try {
             val raw = GameFiles.readProgressBackup(appCtx) ?: return
             val o = JSONObject(raw)
-            p.edit()
-                .putInt("coins", o.optInt("coins", 100)).putInt("xp", o.optInt("xp", 0))
-                .putString("nick", o.optString("nick", "Игрок"))
-                .putString("skin", o.optString("skin", "default"))
+            p.edit().putInt("coins", o.optInt("coins", 100)).putInt("xp", o.optInt("xp", 0))
+                .putString("nick", o.optString("nick", "Игрок")).putString("skin", o.optString("skin", "default"))
                 .putString("character", o.optString("character", "basic"))
-                .putInt("gamesPlayed", o.optInt("gamesPlayed", 0))
-                .putInt("wins", o.optInt("wins", 0)).putInt("losses", o.optInt("losses", 0))
-                .putInt("totalFoodEaten", o.optInt("totalFoodEaten", 0))
-                .putInt("maxLength", o.optInt("maxLength", 3))
-                .putInt("totalCoinsEarned", o.optInt("totalCoinsEarned", 0))
-                .putInt("totalCoinsSpent", o.optInt("totalCoinsSpent", 0))
-                .putInt("casesOpened", o.optInt("casesOpened", 0))
+                .putBoolean("showGrid", o.optBoolean("showGrid", false))
+                .putInt("targetFps", o.optInt("targetFps", 120)).putBoolean("registered", o.optBoolean("registered", false))
+                .putInt("gamesPlayed", o.optInt("gamesPlayed", 0)).putInt("wins", o.optInt("wins", 0))
+                .putInt("losses", o.optInt("losses", 0)).putInt("totalFoodEaten", o.optInt("totalFoodEaten", 0))
+                .putInt("maxLength", o.optInt("maxLength", 3)).putInt("totalCoinsEarned", o.optInt("totalCoinsEarned", 0))
+                .putInt("totalCoinsSpent", o.optInt("totalCoinsSpent", 0)).putInt("casesOpened", o.optInt("casesOpened", 0))
                 .putString("playerId", o.optString("playerId", UUID.randomUUID().toString()))
-                .putString("history", o.optString("history", "[]"))
-                .putString("lastDailyDay", o.optString("lastDailyDay", "")).apply()
-            val unlocked = mutableSetOf<String>()
-            o.optJSONArray("unlocked")?.let { for (i in 0 until it.length()) unlocked.add(it.getString(i)) }
-            if (unlocked.isEmpty()) unlocked.add("default")
-            p.edit().putStringSet("unlocked", unlocked).apply()
-            val chars = mutableSetOf<String>()
-            o.optJSONArray("chars")?.let { for (i in 0 until it.length()) chars.add(it.getString(i)) }
-            if (chars.isEmpty()) chars.add("basic")
-            p.edit().putStringSet("chars", chars).apply()
-            o.optJSONObject("bests")?.let { b ->
-                val keys = b.keys()
-                while (keys.hasNext()) {
-                    val k = keys.next()
-                    p.edit().putInt("best_$k", b.optInt(k, 0)).apply()
-                }
-            }
+                .putString("history", o.optString("history", "[]")).putString("lastDailyDay", o.optString("lastDailyDay", "")).apply()
+            val unlocked = mutableSetOf<String>(); o.optJSONArray("unlocked")?.let { for (i in 0 until it.length()) unlocked.add(it.getString(i)) }
+            if (unlocked.isEmpty()) unlocked.add("default"); p.edit().putStringSet("unlocked", unlocked).apply()
+            val chars = mutableSetOf<String>(); o.optJSONArray("chars")?.let { for (i in 0 until it.length()) chars.add(it.getString(i)) }
+            if (chars.isEmpty()) chars.add("basic"); p.edit().putStringSet("chars", chars).apply()
+            o.optJSONObject("bests")?.let { b -> val keys = b.keys(); while (keys.hasNext()) { val k = keys.next(); p.edit().putInt("best_$k", b.optInt(k, 0)).apply() } }
         } catch (_: Exception) { }
     }
 }
