@@ -117,18 +117,31 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     }
     LaunchedEffect(phase, mode) {
         while (phase == Phase.RUN) {
-            smoothStep(mode.speedMs.coerceAtLeast(60L), store.targetFps) { progress = it }
-            if (phase != Phase.RUN) break; progress = 0f; dir = next
-            val h = snake.first(); var nx = h.x; var ny = h.y
+            dir = next
+            val h = snake.first()
+            var nx = h.x; var ny = h.y
             when (dir) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
-            if (!mode.wallsKill) { if (nx < 0) nx = cols - 1; if (nx >= cols) nx = 0; if (ny < 0) ny = rows - 1; if (ny >= rows) ny = 0 }
-            val nh = Cell(nx, ny); val eat = nh == food; val body = if (eat) snake else snake.dropLast(1)
+            if (!mode.wallsKill) {
+                if (nx < 0) nx = cols - 1; if (nx >= cols) nx = 0
+                if (ny < 0) ny = rows - 1; if (ny >= rows) ny = 0
+            }
+            val nh = Cell(nx, ny)
+            val eat = nh == food
+            val body = if (eat) snake else snake.dropLast(1)
             val wall = mode.wallsKill && (nx !in 0 until cols || ny !in 0 until rows)
-            if (wall || nh in body) { finish(); break }
-            snake = listOf(nh) + body; progress = 1f
+            if (wall || nh in body) { progress = 1f; finish(); break }
+            progress = 0f
+            snake = listOf(nh) + body
+            smoothStep(mode.speedMs.coerceAtLeast(60L), store.targetFps) { progress = it }
+            if (phase != Phase.RUN) break
+            progress = 1f
             if (eat) {
                 score += 10
-                val free = buildList { for (y in 0 until rows) for (x in 0 until cols) { val c = Cell(x, y); if (c !in snake) add(c) } }
+                val free = buildList {
+                    for (y in 0 until rows) for (x in 0 until cols) {
+                        val c = Cell(x, y); if (c !in snake) add(c)
+                    }
+                }
                 if (free.isEmpty()) finish() else food = free.random()
             }
         }
@@ -154,7 +167,10 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     }
 }
 
-internal data class EnemySnake(var body: List<Cell>, var dir: Dir, var score: Int, val color: Color, val name: String)
+internal data class EnemySnake(
+    var body: List<Cell>, var dir: Dir, var score: Int, val color: Color, val name: String,
+    val ultId: String = "boost", var ultCd: Int = 0
+)
 
 @Composable
 internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
@@ -167,12 +183,14 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     var snake by remember { mutableStateOf(listOf(Cell(6, 14), Cell(5, 14), Cell(4, 14))) }
     var foods by remember { mutableStateOf(listOf(Cell(12, 10), Cell(18, 20), Cell(8, 22))) }
     var progress by remember { mutableFloatStateOf(1f) }
-    var enemies by remember { mutableStateOf(listOf(
-        EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж"),
-        EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд"),
-        EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон"),
-        EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд")
-    )) }
+    var enemies by remember {
+        mutableStateOf(listOf(
+            EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж", "boost", 0),
+            EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд", "freeze", 0),
+            EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон", "lightning", 0),
+            EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд", "dash", 0)
+        ))
+    }
     var ultCd by remember { mutableIntStateOf(0) }
     var invulnLeft by remember { mutableIntStateOf(0) }
     var boostLeft by remember { mutableIntStateOf(0) }
@@ -180,6 +198,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     var eventName by remember { mutableStateOf("") }
     var rewarded by remember { mutableStateOf(false) }
     var aiTick by remember { mutableIntStateOf(0) }
+    var playerSlowLeft by remember { mutableIntStateOf(0) }
     val startMs = remember { System.currentTimeMillis() }
     val ability = ch.ability
     fun wrap(n: Int, max: Int) = when { n < 0 -> max - 1; n >= max -> 0; else -> n }
@@ -195,13 +214,13 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
         snake = listOf(Cell(6, 14), Cell(5, 14), Cell(4, 14)); dir = Dir.RIGHT; next = Dir.RIGHT
         foods = listOf(Cell(12, 10), Cell(18, 20), Cell(8, 22))
         enemies = listOf(
-            EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж"),
-            EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд"),
-            EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон"),
-            EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд")
+            EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж", "boost", 0),
+            EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд", "freeze", 0),
+            EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон", "lightning", 0),
+            EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд", "dash", 0)
         )
         score = 0; rewarded = false; progress = 1f; ultCd = 0; invulnLeft = 0; boostLeft = 0
-        eventLeft = 0; eventName = ""; aiTick = 0; phase = Phase.READY
+        eventLeft = 0; eventName = ""; aiTick = 0; playerSlowLeft = 0; phase = Phase.READY
     }
     fun finish() {
         if (phase == Phase.DEAD) return; phase = Phase.DEAD; progress = 1f; if (rewarded) return; rewarded = true
@@ -224,28 +243,41 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     }
     LaunchedEffect(phase) {
         while (phase == Phase.RUN) {
-            val base = if (boostLeft > 0) 55L else GameMode.FEEDING.speedMs.coerceAtLeast(70L)
-            smoothStep(base, store.targetFps) { progress = it }
-            if (phase != Phase.RUN) break; progress = 0f; dir = next
             if (ultCd > 0) ultCd--; if (invulnLeft > 0) invulnLeft--; if (boostLeft > 0) boostLeft--
+            if (playerSlowLeft > 0) playerSlowLeft--
             if (eventLeft > 0) { eventLeft--; if (eventLeft == 0) eventName = "" }
             else if (Random.nextFloat() < 0.04f) {
                 eventName = "Яблоки!"; eventLeft = 5
                 foods = (foods + List(8) { freeCell(snake.toSet() + enemies.flatMap { it.body }) }).distinct().take(20)
             }
+            dir = next
             val head = snake.first(); var pnx = head.x; var pny = head.y
             when (dir) { Dir.UP -> pny--; Dir.DOWN -> pny++; Dir.LEFT -> pnx--; Dir.RIGHT -> pnx++ }
             pnx = wrap(pnx, cols); pny = wrap(pny, rows)
             val pNext = Cell(pnx, pny); val eatIdx = foods.indexOf(pNext); val grow = eatIdx >= 0
             val pBody = if (grow) snake else snake.dropLast(1)
-            if ((pNext in pBody || enemies.any { pNext in it.body }) && invulnLeft <= 0) { finish(); break }
+            if ((pNext in pBody || enemies.any { pNext in it.body }) && invulnLeft <= 0) { progress = 1f; finish(); break }
+            progress = 0f
             snake = listOf(pNext) + pBody
             if (grow) {
                 score += 10; foods = foods.toMutableList().also { it.removeAt(eatIdx) }
                 if (foods.isEmpty() || eventLeft > 0) foods = foods + freeCell(snake.toSet() + enemies.flatMap { it.body })
             }
             aiTick++
-            val frozen = eventName == "Холод" && eventLeft > 0
+            enemies = enemies.map { e ->
+                var e2 = e
+                if (e2.ultCd > 0) e2 = e2.copy(ultCd = e2.ultCd - 1)
+                else if (Random.nextFloat() < 0.08f) {
+                    when (e2.ultId) {
+                        "boost", "dash" -> e2 = e2.copy(ultCd = 12)
+                        "freeze" -> { e2 = e2.copy(ultCd = 16); playerSlowLeft = 2; eventName = "${e2.name}: Холод"; eventLeft = 2 }
+                        "lightning" -> { e2 = e2.copy(ultCd = 18); if (score > 0) score = (score - 5).coerceAtLeast(0); eventName = "${e2.name}: Молния"; eventLeft = 2 }
+                        else -> e2 = e2.copy(ultCd = 12)
+                    }
+                }
+                e2
+            }
+            val frozen = eventName.contains("Холод") && eventLeft > 0
             if (aiTick % 2 == 0 && !frozen) {
                 enemies = enemies.map { e ->
                     val hx = e.body.first().x; val hy = e.body.first().y
@@ -276,6 +308,9 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                     e.copy(body = newBody, dir = ed, score = sc)
                 }
             }
+            val base = if (boostLeft > 0) 55L else if (playerSlowLeft > 0) 160L else GameMode.FEEDING.speedMs.coerceAtLeast(70L)
+            smoothStep(base, store.targetFps) { progress = it }
+            if (phase != Phase.RUN) break
             progress = 1f
         }
     }
