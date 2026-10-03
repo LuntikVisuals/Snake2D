@@ -11,7 +11,7 @@ android {
         applicationId = "com.luntik.snake"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
+        versionCode = 5
         versionName = "2.0.0.1 Beta"
     }
     buildTypes {
