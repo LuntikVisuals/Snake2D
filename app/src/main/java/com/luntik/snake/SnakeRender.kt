@@ -59,8 +59,10 @@ internal fun SmoothSnakeBoard(
                 ep.quadraticBezierTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
             }
             ep.lineTo(pts[0].x, pts[0].y)
-            drawPath(ep, col.copy(alpha = 0.8f), style = Stroke(width = cell * 0.48f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawCircle(col, cell * 0.26f, pts[0])
+            val ew = cell * 0.72f
+            drawPath(ep, Color.Black.copy(alpha = 0.3f), style = Stroke(width = ew * 1.08f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(ep, col.copy(alpha = 0.9f), style = Stroke(width = ew, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawCircle(col, cell * 0.38f, pts[0])
         }
         if (snake.isEmpty()) return@Canvas
         fun centerOf(c: RenderCell) = Offset(c.x * cw + cw / 2f, c.y * ch + ch / 2f)
@@ -103,18 +105,28 @@ internal fun SmoothSnakeBoard(
 @Composable
 internal fun SkinPreview(headColor: Color, bodyColor: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val cell = size.minDimension / 6f; val cy = size.height / 2f
-        for (i in 0..4) {
-            val cx = size.width * 0.15f + i * cell * 0.85f
-            drawCircle(if (i == 4) headColor else bodyColor.copy(alpha = 0.95f - i * 0.08f), cell * (if (i == 4) 0.48f else 0.4f), Offset(cx, cy))
+        val cell = size.minDimension / 5.5f
+        val cy = size.height / 2f
+        val pts = (0..5).map { i -> Offset(size.width * 0.12f + i * cell * 0.75f, cy) }
+        val bodyPath = Path()
+        bodyPath.moveTo(pts.first().x, pts.first().y)
+        for (i in 1 until pts.size) {
+            val a = pts[i - 1]; val b = pts[i]
+            bodyPath.quadraticBezierTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
         }
-        val hx = size.width * 0.15f + 4 * cell * 0.85f
-        drawCircle(Color.White, cell * 0.12f, Offset(hx + cell * 0.1f, cy - cell * 0.15f))
-        drawCircle(Color.White, cell * 0.12f, Offset(hx + cell * 0.1f, cy + cell * 0.15f))
-        drawCircle(Color(0xFF0A1410), cell * 0.07f, Offset(hx + cell * 0.15f, cy - cell * 0.15f))
-        drawCircle(Color(0xFF0A1410), cell * 0.07f, Offset(hx + cell * 0.15f, cy + cell * 0.15f))
-        val ax = size.width * 0.88f
-        drawCircle(Color(0xFFE53935), cell * 0.35f, Offset(ax, cy))
-        drawCircle(Color.White.copy(alpha = 0.4f), cell * 0.1f, Offset(ax - cell * 0.1f, cy - cell * 0.1f))
+        bodyPath.lineTo(pts.last().x, pts.last().y)
+        val stroke = cell * 0.7f
+        drawPath(bodyPath, Color.Black.copy(alpha = 0.3f), style = Stroke(width = stroke * 1.1f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(bodyPath, brush = Brush.linearGradient(listOf(bodyColor, bodyColor, headColor)), style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(bodyPath, Color.White.copy(alpha = 0.15f), style = Stroke(width = stroke * 0.35f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        val hp = pts.last(); val headR = cell * 0.42f
+        drawCircle(brush = Brush.radialGradient(listOf(headColor, bodyColor), Offset(hp.x - headR * 0.15f, hp.y - headR * 0.15f), headR * 1.2f), radius = headR, center = hp)
+        drawCircle(Color.White, cell * 0.1f, Offset(hp.x + cell * 0.12f, hp.y - cell * 0.12f))
+        drawCircle(Color.White, cell * 0.1f, Offset(hp.x + cell * 0.12f, hp.y + cell * 0.12f))
+        drawCircle(Color(0xFF0A1410), cell * 0.055f, Offset(hp.x + cell * 0.16f, hp.y - cell * 0.12f))
+        drawCircle(Color(0xFF0A1410), cell * 0.055f, Offset(hp.x + cell * 0.16f, hp.y + cell * 0.12f))
+        val ax = size.width * 0.9f
+        drawCircle(Color(0xFFE53935), cell * 0.32f, Offset(ax, cy))
+        drawCircle(Color.White.copy(alpha = 0.4f), cell * 0.09f, Offset(ax - cell * 0.1f, cy - cell * 0.1f))
     }
 }
