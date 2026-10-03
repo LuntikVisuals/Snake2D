@@ -22,13 +22,11 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.random.Random
 
-internal suspend fun smoothStep(stepMs: Long, onProgress: (Float) -> Unit) {
-    val frames = 8
-    val fd = (stepMs / frames).coerceAtLeast(8L)
-    for (f in 1..frames) {
-        onProgress(f / frames.toFloat())
-        delay(fd)
-    }
+internal suspend fun smoothStep(stepMs: Long, targetFps: Int = 120, onProgress: (Float) -> Unit) {
+    val frameMs = (1000f / targetFps.coerceIn(60, 144)).toLong().coerceAtLeast(6L)
+    val frames = (stepMs / frameMs).toInt().coerceIn(6, 24)
+    val fd = (stepMs / frames).coerceAtLeast(frameMs)
+    for (f in 1..frames) { onProgress(f / frames.toFloat()); delay(fd) }
 }
 
 @Composable
@@ -45,26 +43,19 @@ internal fun ControlPad(onDir: (Dir) -> Unit) {
 
 @Composable
 internal fun CtrlBtn(label: String, size: Int, onClick: () -> Unit) {
-    Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xDD1C2B3B))
-            .border(1.5.dp, C.cyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) { Text(label, color = C.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+    Box(Modifier.size(size.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xDD1C2B3B))
+        .border(1.5.dp, C.cyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center) { Text(label, color = C.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
 }
 
 internal fun Modifier.swipeDir(enabled: Boolean, onDir: (Dir) -> Unit): Modifier = pointerInput(enabled) {
     if (!enabled) return@pointerInput
-    var accX = 0f
-    var accY = 0f
-    var fired = false
+    var accX = 0f; var accY = 0f; var fired = false
     detectDragGestures(
         onDragStart = { accX = 0f; accY = 0f; fired = false },
         onDrag = { change, drag ->
-            change.consume()
-            if (fired) return@detectDragGestures
-            accX += drag.x
-            accY += drag.y
+            change.consume(); if (fired) return@detectDragGestures
+            accX += drag.x; accY += drag.y
             if (abs(accX) > 24f || abs(accY) > 24f) {
                 fired = true
                 if (abs(accX) > abs(accY)) onDir(if (accX > 0) Dir.RIGHT else Dir.LEFT)
@@ -76,10 +67,25 @@ internal fun Modifier.swipeDir(enabled: Boolean, onDir: (Dir) -> Unit): Modifier
 }
 
 @Composable
+internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0x99070D16)), contentAlignment = Alignment.Center) {
+        Glass(Modifier.fillMaxWidth(0.85f)) {
+            Text(if (phase == Phase.READY) "ГОТОВ?" else "КОНЕЦ", color = C.text, fontSize = 22.sp, fontWeight = FontWeight.Black)
+            Text(if (phase == Phase.READY) "Свайп или кнопки" else "Счёт $score", color = C.muted)
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable(onClick = onStart).padding(14.dp),
+                contentAlignment = Alignment.Center) {
+                Text(if (phase == Phase.READY) "СТАРТ" else "ЕЩЁ РАЗ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Unit) {
     val skin = ShopData.skin(store.selectedSkin)
-    val cols = COLS
-    val rows = ROWS
+    val cols = COLS; val rows = ROWS
     var phase by remember { mutableStateOf(Phase.READY) }
     var score by remember { mutableIntStateOf(0) }
     var dir by remember { mutableStateOf(Dir.RIGHT) }
@@ -89,71 +95,44 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     var progress by remember { mutableFloatStateOf(1f) }
     var rewarded by remember { mutableStateOf(false) }
     val startMs = remember { System.currentTimeMillis() }
-
     fun spawn(body: List<Cell>): Cell {
-        var c: Cell
-        do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)) } while (c in body)
-        return c
+        var c: Cell; do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)) } while (c in body); return c
     }
     fun turn(d: Dir) {
         val opp = when (dir) { Dir.UP -> Dir.DOWN; Dir.DOWN -> Dir.UP; Dir.LEFT -> Dir.RIGHT; Dir.RIGHT -> Dir.LEFT }
         if (d != opp) next = d
     }
     fun reset() {
-        snake = listOf(Cell(4, 10), Cell(3, 10), Cell(2, 10))
-        dir = Dir.RIGHT; next = Dir.RIGHT; food = spawn(snake)
+        snake = listOf(Cell(4, 10), Cell(3, 10), Cell(2, 10)); dir = Dir.RIGHT; next = Dir.RIGHT; food = spawn(snake)
         score = 0; rewarded = false; progress = 1f; phase = Phase.READY
     }
     fun finish() {
-        if (phase == Phase.DEAD) return
-        phase = Phase.DEAD
-        progress = 1f
-        if (rewarded) return
-        rewarded = true
+        if (phase == Phase.DEAD) return; phase = Phase.DEAD; progress = 1f; if (rewarded) return; rewarded = true
         val foodEaten = score / 10
-        val fair = AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, foodEaten)
-        if (fair) {
+        if (AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, foodEaten)) {
             store.addCoins((score * mode.coinMul).toInt().coerceAtLeast(if (score > 0) 3 else 0), "Партия ${mode.title}")
-            store.addXp((score * mode.xpMul).toInt().coerceAtLeast(3))
-            store.pushScore(store.nickname, score, mode.name)
+            store.addXp((score * mode.xpMul).toInt().coerceAtLeast(3)); store.pushScore(store.nickname, score, mode.name)
         }
-        store.recordGameEnd(false, foodEaten, snake.size)
-        store.checkAchievementsAfterGame(score, snake.size, false)
-        store.saveBackup()
+        store.recordGameEnd(false, foodEaten, snake.size); store.checkAchievementsAfterGame(score, snake.size, false); store.saveBackup()
     }
-
     LaunchedEffect(phase, mode) {
         while (phase == Phase.RUN) {
-            smoothStep(mode.speedMs.coerceAtLeast(60L)) { progress = it }
-            if (phase != Phase.RUN) break
-            progress = 0f
-            dir = next
-            val h = snake.first()
-            var nx = h.x; var ny = h.y
+            smoothStep(mode.speedMs.coerceAtLeast(60L), store.targetFps) { progress = it }
+            if (phase != Phase.RUN) break; progress = 0f; dir = next
+            val h = snake.first(); var nx = h.x; var ny = h.y
             when (dir) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
-            if (!mode.wallsKill) {
-                if (nx < 0) nx = cols - 1; if (nx >= cols) nx = 0
-                if (ny < 0) ny = rows - 1; if (ny >= rows) ny = 0
-            }
-            val nh = Cell(nx, ny)
-            val eat = nh == food
-            val body = if (eat) snake else snake.dropLast(1)
+            if (!mode.wallsKill) { if (nx < 0) nx = cols - 1; if (nx >= cols) nx = 0; if (ny < 0) ny = rows - 1; if (ny >= rows) ny = 0 }
+            val nh = Cell(nx, ny); val eat = nh == food; val body = if (eat) snake else snake.dropLast(1)
             val wall = mode.wallsKill && (nx !in 0 until cols || ny !in 0 until rows)
             if (wall || nh in body) { finish(); break }
-            snake = listOf(nh) + body
-            progress = 1f
+            snake = listOf(nh) + body; progress = 1f
             if (eat) {
                 score += 10
-                val free = buildList {
-                    for (y in 0 until rows) for (x in 0 until cols) {
-                        val c = Cell(x, y); if (c !in snake) add(c)
-                    }
-                }
+                val free = buildList { for (y in 0 until rows) for (x in 0 until cols) { val c = Cell(x, y); if (c !in snake) add(c) } }
                 if (free.isEmpty()) finish() else food = free.random()
             }
         }
     }
-
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
@@ -163,56 +142,24 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
         Spacer(Modifier.height(6.dp))
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
-            Box(
-                Modifier.width(w).aspectRatio(cols / rows.toFloat())
-                    .clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
-                    .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                    .swipeDir(phase == Phase.RUN) { turn(it) }
-            ) {
-                SmoothSnakeBoard(
-                    cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
+            Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
+                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).swipeDir(phase == Phase.RUN) { turn(it) }) {
+                SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
-                    Color(skin.headColor), Color(skin.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress
-                )
+                    Color(skin.headColor), Color(skin.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
                 if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
             }
         }
-        Spacer(Modifier.height(10.dp))
-        ControlPad { turn(it) }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp)); ControlPad { turn(it) }; Spacer(Modifier.height(8.dp))
     }
 }
 
-@Composable
-internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color(0x99070D16)), contentAlignment = Alignment.Center) {
-        Glass(Modifier.fillMaxWidth(0.85f)) {
-            Text(if (phase == Phase.READY) "ГОТОВ?" else "КОНЕЦ", color = C.text, fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text(if (phase == Phase.READY) "Свайп или кнопки" else "Счёт $score", color = C.muted)
-            Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .background(Brush.horizontalGradient(listOf(C.mint, C.cyan)))
-                    .clickable(onClick = onStart).padding(14.dp),
-                contentAlignment = Alignment.Center
-            ) { Text(if (phase == Phase.READY) "СТАРТ" else "ЕЩЁ РАЗ", color = Color(0xFF062016), fontWeight = FontWeight.Black) }
-        }
-    }
-}
-
-internal data class EnemySnake(
-    var body: List<Cell>,
-    var dir: Dir,
-    var score: Int,
-    val color: Color,
-    val name: String
-)
+internal data class EnemySnake(var body: List<Cell>, var dir: Dir, var score: Int, val color: Color, val name: String)
 
 @Composable
 internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
-    val ch = CharacterData.all.find { it.id == store.selectedCharacter } ?: CharacterData.all.first()
-    val cols = FEED_COLS
-    val rows = FEED_ROWS
+    val ch = CharacterData.byId(store.selectedCharacter)
+    val cols = FEED_COLS; val rows = FEED_ROWS
     var phase by remember { mutableStateOf(Phase.READY) }
     var score by remember { mutableIntStateOf(0) }
     var dir by remember { mutableStateOf(Dir.RIGHT) }
@@ -220,38 +167,32 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     var snake by remember { mutableStateOf(listOf(Cell(6, 14), Cell(5, 14), Cell(4, 14))) }
     var foods by remember { mutableStateOf(listOf(Cell(12, 10), Cell(18, 20), Cell(8, 22))) }
     var progress by remember { mutableFloatStateOf(1f) }
-    var enemies by remember {
-        mutableStateOf(
-            listOf(
-                EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж"),
-                EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд"),
-                EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон"),
-                EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд")
-            )
-        )
-    }
+    var enemies by remember { mutableStateOf(listOf(
+        EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж"),
+        EnemySnake(listOf(Cell(6, 22), Cell(6, 23), Cell(6, 24)), Dir.UP, 0, Color(0xFF4FC3F7), "Лёд"),
+        EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон"),
+        EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд")
+    )) }
     var ultCd by remember { mutableIntStateOf(0) }
     var invulnLeft by remember { mutableIntStateOf(0) }
     var boostLeft by remember { mutableIntStateOf(0) }
     var eventLeft by remember { mutableIntStateOf(0) }
     var eventName by remember { mutableStateOf("") }
     var rewarded by remember { mutableStateOf(false) }
+    var aiTick by remember { mutableIntStateOf(0) }
     val startMs = remember { System.currentTimeMillis() }
     val ability = ch.ability
-
+    fun wrap(n: Int, max: Int) = when { n < 0 -> max - 1; n >= max -> 0; else -> n }
     fun freeCell(blocked: Set<Cell>): Cell {
-        var c: Cell
-        var tries = 0
-        do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)); tries++ } while (c in blocked && tries < 200)
-        return c
+        var c: Cell; var tries = 0
+        do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)); tries++ } while (c in blocked && tries < 200); return c
     }
     fun turn(d: Dir) {
         val opp = when (dir) { Dir.UP -> Dir.DOWN; Dir.DOWN -> Dir.UP; Dir.LEFT -> Dir.RIGHT; Dir.RIGHT -> Dir.LEFT }
         if (d != opp) next = d
     }
     fun reset() {
-        snake = listOf(Cell(6, 14), Cell(5, 14), Cell(4, 14))
-        dir = Dir.RIGHT; next = Dir.RIGHT
+        snake = listOf(Cell(6, 14), Cell(5, 14), Cell(4, 14)); dir = Dir.RIGHT; next = Dir.RIGHT
         foods = listOf(Cell(12, 10), Cell(18, 20), Cell(8, 22))
         enemies = listOf(
             EnemySnake(listOf(Cell(18, 6), Cell(19, 6), Cell(20, 6)), Dir.LEFT, 0, Color(0xFFFF7043), "Оранж"),
@@ -259,125 +200,91 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
             EnemySnake(listOf(Cell(20, 22), Cell(19, 22), Cell(18, 22)), Dir.LEFT, 0, Color(0xFFE040FB), "Неон"),
             EnemySnake(listOf(Cell(12, 4), Cell(12, 5), Cell(12, 6)), Dir.DOWN, 0, Color(0xFFFFD54F), "Голд")
         )
-        score = 0; rewarded = false; progress = 1f; ultCd = 0; invulnLeft = 0; boostLeft = 0; eventLeft = 0; eventName = ""
-        phase = Phase.READY
+        score = 0; rewarded = false; progress = 1f; ultCd = 0; invulnLeft = 0; boostLeft = 0
+        eventLeft = 0; eventName = ""; aiTick = 0; phase = Phase.READY
     }
     fun finish() {
-        if (phase == Phase.DEAD) return
-        phase = Phase.DEAD
-        progress = 1f
-        if (rewarded) return
-        rewarded = true
-        val fair = AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, score / 10)
-        if (fair) {
+        if (phase == Phase.DEAD) return; phase = Phase.DEAD; progress = 1f; if (rewarded) return; rewarded = true
+        if (AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, score / 10)) {
             store.addCoins((score * GameMode.FEEDING.coinMul).toInt().coerceAtLeast(if (score > 0) 5 else 0), "Поедание")
-            store.addXp((score * GameMode.FEEDING.xpMul).toInt().coerceAtLeast(5))
-            store.pushScore(store.nickname, score, GameMode.FEEDING.name)
+            store.addXp((score * GameMode.FEEDING.xpMul).toInt().coerceAtLeast(5)); store.pushScore(store.nickname, score, GameMode.FEEDING.name)
         }
-        store.recordGameEnd(false, score / 10, snake.size)
-        store.saveBackup()
+        store.recordGameEnd(false, score / 10, snake.size); store.saveBackup()
     }
     fun useUlt() {
         if (ability == null || ultCd > 0 || phase != Phase.RUN) return
         ultCd = ability.cooldownSec
         when (ability.id) {
-            "boost" -> boostLeft = 3
-            "joke" -> invulnLeft = 5
-            "lightning" -> {
-                boostLeft = 5
-                eventName = "Молния"
-                eventLeft = 2
-                enemies = enemies.map { e -> if (e.score > 0) e.copy(score = (e.score - 10).coerceAtLeast(0)) else e }
-            }
+            "boost", "dash" -> boostLeft = if (ability.id == "dash") 2 else 3
+            "joke", "phase" -> invulnLeft = if (ability.id == "phase") 3 else 5
+            "lightning" -> { boostLeft = 5; eventName = "Молния"; eventLeft = 2; enemies = enemies.map { e -> e.copy(score = (e.score - 10).coerceAtLeast(0)) } }
+            "freeze" -> { eventName = "Холод"; eventLeft = 2 }
             else -> boostLeft = 3
         }
     }
-
     LaunchedEffect(phase) {
         while (phase == Phase.RUN) {
             val base = if (boostLeft > 0) 55L else GameMode.FEEDING.speedMs.coerceAtLeast(70L)
-            smoothStep(base) { progress = it }
-            if (phase != Phase.RUN) break
-            progress = 0f
-            dir = next
-            if (ultCd > 0) ultCd--
-            if (invulnLeft > 0) invulnLeft--
-            if (boostLeft > 0) boostLeft--
-            if (eventLeft > 0) {
-                eventLeft--
-                if (eventLeft == 0) eventName = ""
-            } else if (Random.nextFloat() < 0.04f) {
-                eventName = "Яблоки!"
-                eventLeft = 5
-                val blocked = snake.toSet() + enemies.flatMap { it.body }
-                foods = (foods + List(8) { freeCell(blocked) }).distinct().take(20)
+            smoothStep(base, store.targetFps) { progress = it }
+            if (phase != Phase.RUN) break; progress = 0f; dir = next
+            if (ultCd > 0) ultCd--; if (invulnLeft > 0) invulnLeft--; if (boostLeft > 0) boostLeft--
+            if (eventLeft > 0) { eventLeft--; if (eventLeft == 0) eventName = "" }
+            else if (Random.nextFloat() < 0.04f) {
+                eventName = "Яблоки!"; eventLeft = 5
+                foods = (foods + List(8) { freeCell(snake.toSet() + enemies.flatMap { it.body }) }).distinct().take(20)
             }
-
-            fun wrap(n: Int, max: Int) = when { n < 0 -> max - 1; n >= max -> 0; else -> n }
-
-            val head = snake.first()
-            var pnx = head.x; var pny = head.y
+            val head = snake.first(); var pnx = head.x; var pny = head.y
             when (dir) { Dir.UP -> pny--; Dir.DOWN -> pny++; Dir.LEFT -> pnx--; Dir.RIGHT -> pnx++ }
             pnx = wrap(pnx, cols); pny = wrap(pny, rows)
-            val pNext = Cell(pnx, pny)
-            val eatIdx = foods.indexOf(pNext)
-            val grow = eatIdx >= 0
+            val pNext = Cell(pnx, pny); val eatIdx = foods.indexOf(pNext); val grow = eatIdx >= 0
             val pBody = if (grow) snake else snake.dropLast(1)
-            val hitSelf = pNext in pBody
-            val hitEnemy = enemies.any { pNext in it.body }
-            if ((hitSelf || hitEnemy) && invulnLeft <= 0) { finish(); break }
+            if ((pNext in pBody || enemies.any { pNext in it.body }) && invulnLeft <= 0) { finish(); break }
             snake = listOf(pNext) + pBody
             if (grow) {
-                score += 10
-                foods = foods.toMutableList().also { it.removeAt(eatIdx) }
-                if (foods.isEmpty() || eventLeft > 0) {
-                    val blocked = snake.toSet() + enemies.flatMap { it.body }
-                    foods = foods + freeCell(blocked)
-                }
+                score += 10; foods = foods.toMutableList().also { it.removeAt(eatIdx) }
+                if (foods.isEmpty() || eventLeft > 0) foods = foods + freeCell(snake.toSet() + enemies.flatMap { it.body })
             }
-
-            enemies = enemies.map { e ->
-                var ed = e.dir
-                if (Random.nextFloat() < 0.2f) ed = Dir.entries.random()
-                else {
-                    val target = foods.minByOrNull { abs(it.x - e.body.first().x) + abs(it.y - e.body.first().y) }
+            aiTick++
+            val frozen = eventName == "Холод" && eventLeft > 0
+            if (aiTick % 2 == 0 && !frozen) {
+                enemies = enemies.map { e ->
+                    val hx = e.body.first().x; val hy = e.body.first().y
+                    val target = foods.minByOrNull { abs(it.x - hx) + abs(it.y - hy) }
+                    var ed = e.dir
                     if (target != null) {
-                        val hx = e.body.first().x; val hy = e.body.first().y
+                        var dx = target.x - hx; var dy = target.y - hy
+                        if (dx > cols / 2) dx -= cols; if (dx < -cols / 2) dx += cols
+                        if (dy > rows / 2) dy -= rows; if (dy < -rows / 2) dy += rows
                         ed = when {
-                            abs(target.x - hx) > abs(target.y - hy) -> if (target.x > hx) Dir.RIGHT else Dir.LEFT
-                            else -> if (target.y > hy) Dir.DOWN else Dir.UP
+                            abs(dx) > abs(dy) -> if (dx > 0) Dir.RIGHT else Dir.LEFT
+                            abs(dy) > 0 -> if (dy > 0) Dir.DOWN else Dir.UP
+                            else -> e.dir
                         }
+                        if (Random.nextFloat() < 0.18f) ed = Dir.entries.random()
                     }
-                }
-                val h = e.body.first()
-                var nx = h.x; var ny = h.y
-                when (ed) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
-                val nh = Cell(wrap(nx, cols), wrap(ny, rows))
-                val eEat = foods.indexOf(nh)
-                val eGrow = eEat >= 0
-                var newBody = listOf(nh) + if (eGrow) e.body else e.body.dropLast(1)
-                if (nh in newBody.drop(1)) newBody = listOf(freeCell(snake.toSet()), freeCell(snake.toSet()))
-                var sc = e.score
-                if (eGrow) {
-                    sc += 10
-                    foods = foods.toMutableList().also { if (eEat in it.indices) it.removeAt(eEat) }
-                    if (foods.size < 3) {
-                        val blocked = snake.toSet() + enemies.flatMap { it.body }
-                        foods = foods + freeCell(blocked)
+                    var nx = hx; var ny = hy
+                    when (ed) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
+                    val nh = Cell(wrap(nx, cols), wrap(ny, rows))
+                    val eEat = foods.indexOf(nh); val eGrow = eEat >= 0
+                    var newBody = listOf(nh) + if (eGrow) e.body else e.body.dropLast(1)
+                    if (nh in newBody.drop(1)) newBody = listOf(nh, Cell(hx, hy))
+                    var sc = e.score
+                    if (eGrow) {
+                        sc += 10; foods = foods.toMutableList().also { if (eEat in it.indices) it.removeAt(eEat) }
+                        if (foods.size < 3) foods = foods + freeCell(snake.toSet() + enemies.flatMap { it.body })
                     }
+                    e.copy(body = newBody, dir = ed, score = sc)
                 }
-                e.copy(body = newBody, dir = ed, score = sc)
             }
             progress = 1f
         }
     }
-
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Поедание · ${ch.name} · $score", color = C.mint, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                if (eventLeft > 0) Text("ИВЕНТ: $eventName (${eventLeft}с)", color = C.gold, fontSize = 12.sp)
+                if (eventLeft > 0) Text("ИВЕНТ: $eventName (${eventLeft})", color = C.gold, fontSize = 12.sp)
             }
             Text("рек ${store.bestScore(GameMode.FEEDING.name)}", color = C.muted, fontSize = 11.sp)
         }
@@ -387,39 +294,24 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
         }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
-            Box(
-                Modifier.width(w).aspectRatio(cols / rows.toFloat())
-                    .clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
-                    .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                    .swipeDir(phase == Phase.RUN) { turn(it) }
-            ) {
+            Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
+                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).swipeDir(phase == Phase.RUN) { turn(it) }) {
                 val mainFood = foods.firstOrNull() ?: Cell(0, 0)
-                SmoothSnakeBoard(
-                    cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
+                SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
-                    Color(ch.headColor), Color(ch.bodyColor),
-                    progress = if (phase == Phase.DEAD) 1f else progress,
-                    extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }
-                )
-                if (foods.size > 1) {
-                    Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-                }
+                    Color(ch.headColor), Color(ch.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress,
+                    extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
+                if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
             }
         }
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             ControlPad { turn(it) }
-            Box(
-                Modifier.size(88.dp).clip(RoundedCornerShape(22.dp))
-                    .background(
-                        if (ultCd == 0 && phase == Phase.RUN) Brush.horizontalGradient(listOf(C.gold, C.mint))
-                        else Brush.horizontalGradient(listOf(Color(0xFF333333), Color(0xFF222222)))
-                    )
-                    .border(2.dp, C.gold.copy(alpha = 0.5f), RoundedCornerShape(22.dp))
-                    .clickable { useUlt() },
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(88.dp).clip(RoundedCornerShape(22.dp))
+                .background(if (ultCd == 0 && phase == Phase.RUN) Brush.horizontalGradient(listOf(C.gold, C.mint)) else Brush.horizontalGradient(listOf(Color(0xFF333333), Color(0xFF222222))))
+                .border(2.dp, C.gold.copy(alpha = 0.5f), RoundedCornerShape(22.dp)).clickable { useUlt() },
+                contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("УЛЬТА", color = Color(0xFF062016), fontWeight = FontWeight.Black, fontSize = 14.sp)
                     Text(if (ultCd > 0) "${ultCd}с" else (ability?.name ?: "—"), color = Color(0xFF062016), fontSize = 11.sp)
