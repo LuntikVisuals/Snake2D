@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,7 +111,7 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
             Scr.SETTINGS -> Settings(store, onFps) { refresh(); scr = Scr.HUB }
             Scr.BATTLEPASS -> BattlePassScreen(store, onDonate = { scr = Scr.SHOP }) { refresh(); scr = Scr.HUB }
             Scr.INVENTORY -> InventoryScreen(store, { refresh() }) { scr = Scr.HUB }
-            Scr.PROFILE -> ProfileScreen(store) { scr = Scr.HUB }
+            Scr.PROFILE -> ProfileScreen(store, onLogout = { store.registered = false; scr = Scr.REGISTER }) { scr = Scr.HUB }
             Scr.LEADER -> LeaderScreen(store) { scr = Scr.HUB }
         }
     }
@@ -126,6 +127,8 @@ internal fun Glass(mod: Modifier = Modifier, content: @Composable ColumnScope.()
 @Composable
 private fun Register(store: ProgressStore, onDone: () -> Unit) {
     var name by remember { mutableStateOf(store.nickname) }
+    var pass by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(APP_TITLE, color = C.mint, fontSize = 26.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(8.dp))
@@ -138,11 +141,34 @@ private fun Register(store: ProgressStore, onDone: () -> Unit) {
                 textStyle = TextStyle(color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 cursorBrush = SolidColor(C.mint),
                 modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
+            if (name.trim().equals("adminka", true)) {
+                Spacer(Modifier.height(8.dp))
+                Text("Пароль админки", color = C.muted, fontSize = 12.sp)
+                BasicTextField(value = pass, onValueChange = { pass = it.take(32) },
+                    textStyle = TextStyle(color = C.text, fontSize = 16.sp),
+                    cursorBrush = SolidColor(C.gold),
+                    modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
+            }
+            if (err.isNotEmpty()) Text(err, color = C.red, fontSize = 12.sp)
         }
         Spacer(Modifier.height(16.dp))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
             .background(Brush.horizontalGradient(listOf(C.mint, C.cyan)))
-            .clickable { store.nickname = name.ifBlank { "Игрок" }; store.registered = true; store.saveBackup(); onDone() }
+            .clickable {
+                val nick = name.ifBlank { "Игрок" }
+                if (nick.equals("adminka", true) && pass != "змейкатоп123321") { err = "Неверный пароль"; return@clickable }
+                store.nickname = nick
+                if (nick.equals("adminka", true)) {
+                    ShopData.skins.forEach { store.unlockSkin(it.id) }
+                    CharacterData.all.forEach { store.unlockCharacter(it.id) }
+                    ShopData.appleSkins.forEach { store.unlockApple(it.id) }
+                    store.customFieldSlot = true
+                    store.bpPremium = true
+                    store.addCoins(5000, "Админка")
+                    store.addGems(200, "Админка")
+                }
+                store.registered = true; store.saveBackup(); onDone()
+            }
             .padding(16.dp), contentAlignment = Alignment.Center) {
             Text("НАЧАТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black, fontSize = 16.sp)
         }
@@ -164,6 +190,14 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onS
             Text(store.nickname, color = C.text, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onProfile))
             Text("${store.coins} монет · ${store.gems} гемов · ${store.tix} tix", color = C.gold, fontSize = 13.sp)
             Text("BP ${store.bpLevel}/40 · ${store.xp} XP", color = C.muted, fontSize = 12.sp)
+            Text("Награды за уровень — листай", color = C.muted, fontSize = 11.sp)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                store.nextLevelRewards().forEach { line ->
+                    Box(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF1C2B3B)).padding(10.dp)) {
+                        Text(line, color = C.mint, fontSize = 12.sp)
+                    }
+                }
+            }
         }
         if (store.canClaimDaily()) {
             Glass(Modifier.fillMaxWidth().clickable { store.claimDaily(); store.saveBackup(); onRefresh() }) {
@@ -361,7 +395,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("МАГАЗИН", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("$coins монет · ${store.gems} гемов", color = C.gold, fontSize = 13.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Скины", "Яблоки", "Персонализация", "Донат").forEachIndexed { i, name ->
                 val sel = tab == i
                 Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (sel) C.mint.copy(alpha = 0.3f) else Color(0xFF1C2B3B))
@@ -413,12 +447,12 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                 ShopData.appleSkins.filter { it.id != "krab_burger" }.forEach { a ->
                     Glass(Modifier.fillMaxWidth()) {
                         Text(a.name, color = C.text, fontWeight = FontWeight.Bold)
-                        val owned = a.price == 0 || a.id in store.unlockedApples() || store.selectedApple == a.id
+                        val owned = a.id == "apple" || a.id in store.unlockedApples()
                         Text(if (store.selectedApple == a.id) "НАДЕТО" else if (owned) "НАДЕТЬ" else "${a.price} монет", color = C.gold, fontSize = 12.sp,
                             modifier = Modifier.clickable {
-                                if (owned || store.spendCoins(a.price, "Яблоко ${a.name}")) {
-                                    store.unlockApple(a.id)
-                                    store.selectedApple = a.id; store.saveBackup(); onChanged()
+                                if (owned) { store.selectedApple = a.id; store.saveBackup(); onChanged() }
+                                else if (store.spendCoins(a.price, "Яблоко ${a.name}")) {
+                                    store.unlockApple(a.id); store.selectedApple = a.id; store.saveBackup(); onChanged()
                                 }
                             })
                     }
@@ -540,7 +574,7 @@ private fun Chars(store: ProgressStore, onChanged: () -> Unit, onPlay: () -> Uni
 
 
 @Composable
-private fun ProfileScreen(store: ProgressStore, onBack: () -> Unit) {
+private fun ProfileScreen(store: ProgressStore, onLogout: () -> Unit, onBack: () -> Unit) {
     val st = store.getStats()
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
@@ -583,6 +617,7 @@ private fun ProfileScreen(store: ProgressStore, onBack: () -> Unit) {
             Text("Кейсов: ${st.casesOpened}", color = C.muted, fontSize = 12.sp)
             Text("Скин: ${ShopData.skin(store.selectedSkin).name}", color = C.muted, fontSize = 12.sp)
             Text("Еда: ${ShopData.apple(store.selectedApple).name}", color = C.muted, fontSize = 12.sp)
+            Text("ВЫЙТИ ИЗ АККАУНТА", color = C.red, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onLogout).padding(top = 8.dp))
         }
     }
 }
