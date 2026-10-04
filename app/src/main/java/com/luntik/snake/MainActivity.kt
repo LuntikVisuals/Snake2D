@@ -406,25 +406,12 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                     Text("Premium батлпасс", color = C.text, fontWeight = FontWeight.Bold)
                     Text("Только донат. Не за гемы.", color = C.red, fontSize = 12.sp)
                     if (store.bpPremium) Text("УЖЕ АКТИВЕН", color = C.mint, fontWeight = FontWeight.Bold)
-                    else Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.gold, C.mint)))
-                        .clickable {
-                            store.bpPremium = true
-                            store.saveBackup()
-                            donateMsg = "Premium активирован донатом (оплата ЛунтикСтор — следующий этап)"
-                            onChanged()
-                        }.padding(12.dp), contentAlignment = Alignment.Center) {
-                        Text("КУПИТЬ ДОНАТОМ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
-                    }
+                    else Text("Скоро. Нужен LuntikWallet — гемами не купить.", color = C.muted, fontSize = 12.sp)
                 }
-                listOf("100 гемов" to 100, "500 гемов" to 500, "1000 монет" to 0).forEach { (title, gems) ->
-                    Glass(Modifier.fillMaxWidth().clickable {
-                        if (gems > 0) store.addGems(gems, "Донат $title") else store.addCoins(1000, "Донат монеты")
-                        donateMsg = "Начислено: $title (заглушка доната)"
-                        coins = store.coins
-                        onChanged()
-                    }) {
+                listOf("100 гемов", "500 гемов", "1000 монет").forEach { title ->
+                    Glass(Modifier.fillMaxWidth()) {
                         Text(title, color = C.text, fontWeight = FontWeight.Bold)
-                        Text("Донат-пакет", color = C.gold, fontSize = 12.sp)
+                        Text("Скоро через LuntikWallet", color = C.muted, fontSize = 12.sp)
                     }
                 }
                 if (donateMsg.isNotEmpty()) Text(donateMsg, color = C.muted, fontSize = 12.sp)
