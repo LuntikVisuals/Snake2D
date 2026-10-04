@@ -107,13 +107,13 @@ object ShopData {
         AppleSkin("krab_burger", "Крабсбургер", 0, 0xFFFFB74D, "burger")
     )
     val cases = listOf(
-        CaseType("basic", "Обычный кейс", 800, mapOf(Rarity.COMMON to 78, Rarity.RARE to 18, Rarity.EPIC to 3, Rarity.LEGENDARY to 1), "crate_wood"),
-        CaseType("rare", "Редкий кейс", 1800, mapOf(Rarity.COMMON to 62, Rarity.RARE to 28, Rarity.EPIC to 8, Rarity.LEGENDARY to 2), "crate_blue"),
-        CaseType("premium", "Премиум кейс", 3500, mapOf(Rarity.COMMON to 50, Rarity.RARE to 32, Rarity.EPIC to 14, Rarity.LEGENDARY to 4), "crate_purple"),
-        CaseType("epic", "Эпический кейс", 7000, mapOf(Rarity.COMMON to 40, Rarity.RARE to 35, Rarity.EPIC to 20, Rarity.LEGENDARY to 5), "crate_gold"),
-        CaseType("legend", "Легендарный кейс", 15000, mapOf(Rarity.COMMON to 30, Rarity.RARE to 35, Rarity.EPIC to 25, Rarity.LEGENDARY to 8, Rarity.SECRET to 2), "crate_legend"),
-        CaseType("trash_bucket", "Помойное ведро", 12000, mapOf(Rarity.COMMON to 40, Rarity.RARE to 30, Rarity.EPIC to 20, Rarity.LEGENDARY to 5, Rarity.EXCLUSIVE to 5), "crate_bucket"),
-        CaseType("krusty", "Красти Краб", 18000, mapOf(Rarity.COMMON to 34, Rarity.RARE to 30, Rarity.EPIC to 22, Rarity.LEGENDARY to 8, Rarity.EXCLUSIVE to 6), "crate_krab")
+        CaseType("basic", "Обычный кейс", 400, mapOf(Rarity.COMMON to 78, Rarity.RARE to 18, Rarity.EPIC to 3, Rarity.LEGENDARY to 1), "crate_wood"),
+        CaseType("rare", "Редкий кейс", 900, mapOf(Rarity.COMMON to 62, Rarity.RARE to 28, Rarity.EPIC to 8, Rarity.LEGENDARY to 2), "crate_blue"),
+        CaseType("premium", "Премиум кейс", 1600, mapOf(Rarity.COMMON to 50, Rarity.RARE to 32, Rarity.EPIC to 14, Rarity.LEGENDARY to 4), "crate_purple"),
+        CaseType("epic", "Эпический кейс", 2800, mapOf(Rarity.COMMON to 40, Rarity.RARE to 35, Rarity.EPIC to 20, Rarity.LEGENDARY to 5), "crate_gold"),
+        CaseType("legend", "Легендарный кейс", 5000, mapOf(Rarity.COMMON to 30, Rarity.RARE to 35, Rarity.EPIC to 25, Rarity.LEGENDARY to 8, Rarity.SECRET to 2), "crate_legend"),
+        CaseType("trash_bucket", "Помойное ведро", 4500, mapOf(Rarity.COMMON to 40, Rarity.RARE to 30, Rarity.EPIC to 20, Rarity.LEGENDARY to 5, Rarity.EXCLUSIVE to 5), "crate_bucket"),
+        CaseType("krusty", "Красти Краб", 6000, mapOf(Rarity.COMMON to 34, Rarity.RARE to 30, Rarity.EPIC to 22, Rarity.LEGENDARY to 8, Rarity.EXCLUSIVE to 6), "crate_krab")
     )
     val achievements = listOf(
         Achievement("first_game", "Первый шаг", "Сыграй первую партию", 20),
