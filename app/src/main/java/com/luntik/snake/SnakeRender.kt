@@ -106,8 +106,7 @@ internal fun SmoothSnakeBoard(
         }
         if (appearance == "retro") {
             snake.forEachIndexed { i, c ->
-                val col = if (i == 0) headColor else bodyColor
-                drawRect(col, Offset(c.x * cw + cw * 0.12f, c.y * ch + ch * 0.12f), Size(cw * 0.76f, ch * 0.76f))
+                drawRect(if (i == 0) headColor else bodyColor, Offset(c.x * cw + cw * 0.12f, c.y * ch + ch * 0.12f), Size(cw * 0.76f, ch * 0.76f))
             }
         } else if (appearance == "retro2") {
             points.forEachIndexed { i, pt -> drawCircle(if (i == 0) headColor else bodyColor, cell * 0.38f, pt) }
@@ -149,15 +148,15 @@ internal fun SmoothSnakeBoard(
         if (points.size >= 2) drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
         if (showHitboxes) points.forEach { drawCircle(Color.Yellow.copy(alpha = 0.35f), cell * 0.36f, it, style = Stroke(width = 2f)) }
         }
-        val hp2 = points.first()
+        val face = points.first()
         when (appearance) {
-            "spongebob" -> { drawRect(Color(0xFFFFEB3B), Offset(hp2.x - cell * 0.28f, hp2.y - cell * 0.28f), Size(cell * 0.56f, cell * 0.56f)); drawCircle(Color.White, cell * 0.08f, Offset(hp2.x - cell * 0.08f, hp2.y - cell * 0.05f)); drawCircle(Color.White, cell * 0.08f, Offset(hp2.x + cell * 0.1f, hp2.y - cell * 0.05f)) }
-            "patrick" -> drawCircle(Color(0xFFF48FB1), cell * 0.34f, hp2)
-            "squidward" -> drawOval(Color(0xFFC6B48A), Offset(hp2.x - cell * 0.16f, hp2.y - cell * 0.4f), Size(cell * 0.5f, cell * 0.8f))
-            "gary" -> drawCircle(Color(0xFF81D4FA), cell * 0.3f, hp2)
-            "krabs" -> drawCircle(Color(0xFFE53935), cell * 0.32f, hp2)
-            "drawn" -> drawCircle(Color.Black.copy(alpha = 0.8f), cell * 0.3f, hp2, style = Stroke(width = 3f))
-            "plankton" -> drawCircle(Color(0xFF66BB6A), cell * 0.22f, hp2)
+            "spongebob" -> drawRect(Color(0xFFFFEB3B), Offset(face.x - cell * 0.28f, face.y - cell * 0.28f), Size(cell * 0.56f, cell * 0.56f))
+            "patrick" -> drawCircle(Color(0xFFF48FB1), cell * 0.34f, face)
+            "squidward" -> drawOval(Color(0xFFC6B48A), Offset(face.x - cell * 0.16f, face.y - cell * 0.4f), Size(cell * 0.5f, cell * 0.8f))
+            "gary" -> drawCircle(Color(0xFF81D4FA), cell * 0.3f, face)
+            "krabs" -> drawCircle(Color(0xFFE53935), cell * 0.32f, face)
+            "drawn" -> drawCircle(Color.Black, cell * 0.3f, face, style = Stroke(width = 3f))
+            "plankton" -> drawCircle(Color(0xFF66BB6A), cell * 0.22f, face)
         }
     }
 }
@@ -168,14 +167,6 @@ internal fun SkinPreview(headColor: Color, bodyColor: Color, modifier: Modifier 
         val cell = size.minDimension / 5.5f
         val cy = size.height / 2f
         val pts = (0..5).map { i -> Offset(size.width * 0.12f + i * cell * 0.75f, cy) }
-        if (appearance == "retro") {
-            snake.forEachIndexed { i, c ->
-                val col = if (i == 0) headColor else bodyColor
-                drawRect(col, Offset(c.x * cw + cw * 0.12f, c.y * ch + ch * 0.12f), Size(cw * 0.76f, ch * 0.76f))
-            }
-        } else if (appearance == "retro2") {
-            points.forEachIndexed { i, pt -> drawCircle(if (i == 0) headColor else bodyColor, cell * 0.38f, pt) }
-        } else {
         val bodyPath = Path()
         bodyPath.moveTo(pts.first().x, pts.first().y)
         for (i in 1 until pts.size) {
