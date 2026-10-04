@@ -118,7 +118,9 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     val ctx = LocalContext.current
     val fieldPhoto = remember(store.fieldPhotoUri) {
         if (store.fieldPhotoUri.isBlank()) null else try {
-            ctx.contentResolver.openInputStream(Uri.parse(store.fieldPhotoUri))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+            val path = store.fieldPhotoUri
+            if (path.startsWith("/")) BitmapFactory.decodeFile(path)?.asImageBitmap()
+            else ctx.contentResolver.openInputStream(Uri.parse(path))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
         } catch (_: Exception) { null }
     }
     val cols = COLS; val rows = ROWS
@@ -230,7 +232,9 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     val ctx = LocalContext.current
     val fieldPhoto = remember(store.fieldPhotoUri) {
         if (store.fieldPhotoUri.isBlank()) null else try {
-            ctx.contentResolver.openInputStream(Uri.parse(store.fieldPhotoUri))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+            val path = store.fieldPhotoUri
+            if (path.startsWith("/")) BitmapFactory.decodeFile(path)?.asImageBitmap()
+            else ctx.contentResolver.openInputStream(Uri.parse(path))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
         } catch (_: Exception) { null }
     }
     val ch = CharacterData.byId(store.selectedCharacter)
@@ -423,23 +427,28 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
 
 @Composable
 internal fun KrustyPlay(store: ProgressStore, onExit: () -> Unit) {
-    val order = listOf("bun", "patty", "cheese")
-    val names = mapOf("bun" to "Булочка", "patty" to "Котлета", "cheese" to "Сыр")
-    val colors = mapOf("bun" to 0xFFFFE082, "patty" to 0xFF8D6E63, "cheese" to 0xFFFFD54F)
+    val order = listOf("bun", "patty", "lettuce", "ketchup", "cheese")
+    val names = mapOf("bun" to "Булочка", "patty" to "Котлета", "lettuce" to "Салат", "ketchup" to "Кетчуп", "cheese" to "Сыр")
+    val colors = mapOf("bun" to Color(0xFFFFE082), "patty" to Color(0xFF8D6E63), "lettuce" to Color(0xFF66BB6A), "ketchup" to Color(0xFFE53935), "cheese" to Color(0xFFFFD54F))
     var step by remember { mutableIntStateOf(0) }
     var phase by remember { mutableStateOf(Phase.READY) }
     var score by remember { mutableIntStateOf(0) }
     var dir by remember { mutableStateOf(Dir.RIGHT) }
     var next by remember { mutableStateOf(Dir.RIGHT) }
     var snake by remember { mutableStateOf(listOf(Cell(4, 10), Cell(3, 10), Cell(2, 10))) }
-    var food by remember { mutableStateOf(Cell(10, 8)) }
-    var foodKind by remember { mutableStateOf("bun") }
+    var foods by remember { mutableStateOf(listOf<Pair<Cell, String>>()) }
     var progress by remember { mutableFloatStateOf(1f) }
     var msg by remember { mutableStateOf("Сначала булочка") }
     var rewarded by remember { mutableStateOf(false) }
     val cols = COLS; val rows = ROWS
-    fun spawn(body: List<Cell>): Cell {
-        var c: Cell; do { c = Cell(kotlin.random.Random.nextInt(cols), kotlin.random.Random.nextInt(rows)) } while (c in body); return c
+    fun spawnAll(body: List<Cell>): List<Pair<Cell, String>> {
+        val used = body.toMutableSet()
+        return order.map { kind ->
+            var c: Cell
+            do { c = Cell(kotlin.random.Random.nextInt(cols), kotlin.random.Random.nextInt(rows)) } while (c in used)
+            used += c
+            c to kind
+        }
     }
     fun turn(d: Dir) {
         val opp = when (dir) { Dir.UP -> Dir.DOWN; Dir.DOWN -> Dir.UP; Dir.LEFT -> Dir.RIGHT; Dir.RIGHT -> Dir.LEFT }
@@ -454,44 +463,53 @@ internal fun KrustyPlay(store: ProgressStore, onExit: () -> Unit) {
             store.pushScore(store.nickname, score, GameMode.KRUSTY.name)
             store.saveBackup()
         }
-        msg = if (ok) "Собрал бургер" else "Не тот слой — проигрыш"
+        msg = if (ok) "Бургер собран" else "Не тот ингредиент"
     }
     LaunchedEffect(phase) {
+        if (phase == Phase.RUN && foods.isEmpty()) foods = spawnAll(snake)
         while (phase == Phase.RUN) {
             dir = next
             val h = snake.first(); var nx = h.x; var ny = h.y
             when (dir) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
             val nh = Cell(nx, ny)
-            val eat = nh == food
-            val body = if (eat) snake else snake.dropLast(1)
+            val hit = foods.indexOfFirst { it.first == nh }
+            val body = if (hit >= 0) snake else snake.dropLast(1)
             if (nx !in 0 until cols || ny !in 0 until rows || nh in body) { progress = 1f; finish(false); break }
             progress = 0f
             snake = listOf(nh) + body
             smoothStep(GameMode.KRUSTY.speedMs, store.targetFps) { progress = it }
             progress = 1f
-            if (eat) {
+            if (hit >= 0) {
+                val kind = foods[hit].second
                 val need = order[step % order.size]
-                if (foodKind != need) { finish(false); break }
+                if (kind != need) { finish(false); break }
                 score += ProgressStore.POINTS_PER_APPLE
                 step++
+                foods = foods.filterIndexed { i, _ -> i != hit }
+                if (foods.isEmpty()) foods = spawnAll(snake)
                 msg = "Дальше: ${names[order[step % order.size]]}"
-                foodKind = order[step % order.size]
-                food = spawn(snake)
             }
         }
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
+    val need = order[step % order.size]
+    val main = foods.firstOrNull { it.second == need }?.first ?: foods.firstOrNull()?.first ?: Cell(8, 8)
+    Column(Modifier.fillMaxSize().background(Color(store.screenBg)).statusBarsPadding().padding(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
             Text("Красти · $score · $msg", color = C.gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
+        Text("На поле 5: булочка, котлета, салат, кетчуп, сыр. Ешь по порядку.", color = C.muted, fontSize = 11.sp)
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
             Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420)).swipeDir(phase == Phase.RUN) { turn(it) }) {
-                SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
-                    RenderDir.RIGHT, Color(0xFFFFCC80), Color(0xFFD84315), foodColor = Color(colors[foodKind] ?: 0xFFFFE082),
-                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
-                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) { step = 0; score = 0; rewarded = false; snake = listOf(Cell(4,10),Cell(3,10),Cell(2,10)); foodKind = "bun"; msg = "Сначала булочка" }; phase = Phase.RUN }, msg)
+                SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(main.x, main.y),
+                    RenderDir.RIGHT, Color(0xFFFFCC80), Color(0xFFD84315), foodColor = colors[need] ?: Color(0xFFFFE082),
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid,
+                    extraFoods = foods.filter { it.first != main }.map { RenderCell(it.first.x, it.first.y) to (colors[it.second] ?: Color.White) })
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, {
+                    if (phase == Phase.DEAD) { step = 0; score = 0; rewarded = false; snake = listOf(Cell(4,10),Cell(3,10),Cell(2,10)); foods = emptyList(); msg = "Сначала булочка" }
+                    phase = Phase.RUN
+                }, msg)
             }
         }
         ControlPad { turn(it) }
