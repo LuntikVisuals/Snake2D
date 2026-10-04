@@ -86,6 +86,7 @@ internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit, rew
 @Composable
 internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Unit) {
     val skin = ShopData.skin(store.selectedSkin)
+    val apple = ShopData.apple(store.selectedApple)
     val cols = COLS; val rows = ROWS
     var phase by remember { mutableStateOf(Phase.READY) }
     var score by remember { mutableIntStateOf(0) }
@@ -168,7 +169,8 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                 .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).swipeDir(phase == Phase.RUN) { turn(it) }) {
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
-                    Color(skin.headColor), Color(skin.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
+                    Color(skin.headColor), Color(skin.bodyColor), foodColor = Color(apple.color),
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
                 if (paused && phase == Phase.RUN) {
                     Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
                         Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
@@ -348,7 +350,8 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                 val mainFood = foods.firstOrNull() ?: Cell(0, 0)
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
-                    Color(ch.headColor), Color(ch.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress,
+                    Color(ch.headColor), Color(ch.bodyColor), foodColor = Color(ShopData.apple(store.selectedApple).color),
+                    progress = if (phase == Phase.DEAD) 1f else progress,
                     extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
                 if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
