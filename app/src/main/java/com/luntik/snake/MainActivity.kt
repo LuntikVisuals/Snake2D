@@ -38,7 +38,7 @@ const val APP_TITLE = "Snake2D 2.1.1.2"
 
 internal enum class Dir { UP, DOWN, LEFT, RIGHT }
 internal enum class Phase { READY, RUN, DEAD }
-internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED, SETTINGS, REGISTER, BATTLEPASS }
+internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED, SETTINGS, REGISTER, BATTLEPASS, INVENTORY }
 internal data class Cell(val x: Int, val y: Int)
 
 internal object C {
@@ -51,6 +51,11 @@ internal object C {
     val red = Color(0xFFFF6684)
     val line = Color.White.copy(alpha = 0.12f)
 }
+
+/** Коллаба Бикини Боттом: цвет фиксирован, перекрасить нельзя */
+internal val COLLAB_LOCKED = setOf(
+    "patrick", "squidward", "gary", "krab", "spongebob", "doodle_bob", "plankton", "spongebob_char"
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,14 +93,16 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
             Scr.HUB -> Hub(store, tick,
                 onPlay = { mode = it; if (it == GameMode.FEEDING) scr = Scr.CHARS else scr = Scr.PLAY },
                 onShop = { scr = Scr.SHOP }, onCases = { scr = Scr.CASES }, onChars = { scr = Scr.CHARS },
-                onSettings = { scr = Scr.SETTINGS }, onBattlePass = { scr = Scr.BATTLEPASS }, onRefresh = { refresh() })
+                onSettings = { scr = Scr.SETTINGS }, onBattlePass = { scr = Scr.BATTLEPASS },
+                onInventory = { scr = Scr.INVENTORY }, onRefresh = { refresh() })
             Scr.PLAY -> ClassicPlay(store, mode) { refresh(); store.saveBackup(); scr = Scr.HUB }
             Scr.SHOP -> key(tick) { Shop(store, { refresh() }) { scr = Scr.HUB } }
             Scr.CASES -> key(tick) { Cases(store, { refresh() }) { scr = Scr.HUB } }
             Scr.CHARS -> key(tick) { Chars(store, { refresh() }, onPlay = { scr = Scr.FEED }, onBack = { scr = Scr.HUB }) }
             Scr.FEED -> FeedingPlay(store) { refresh(); store.saveBackup(); scr = Scr.HUB }
             Scr.SETTINGS -> Settings(store, onFps) { refresh(); scr = Scr.HUB }
-            Scr.BATTLEPASS -> BattlePassScreen(store) { refresh(); scr = Scr.HUB }
+            Scr.BATTLEPASS -> BattlePassScreen(store, onDonate = { scr = Scr.SHOP }) { refresh(); scr = Scr.HUB }
+            Scr.INVENTORY -> InventoryScreen(store, { refresh() }) { scr = Scr.HUB }
         }
     }
 }
@@ -134,7 +141,7 @@ private fun Register(store: ProgressStore, onDone: () -> Unit) {
 }
 
 @Composable
-private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onSettings: () -> Unit, onBattlePass: () -> Unit, onRefresh: () -> Unit) {
+private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onSettings: () -> Unit, onBattlePass: () -> Unit, onInventory: () -> Unit, onRefresh: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val t = tick
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -158,9 +165,15 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onS
             Glass(Modifier.weight(1f).clickable(onClick = onShop)) { Text("МАГАЗИН", color = C.text, fontWeight = FontWeight.Bold) }
             Glass(Modifier.weight(1f).clickable(onClick = onCases)) { Text("КЕЙСЫ", color = C.text, fontWeight = FontWeight.Bold) }
         }
-        Glass(Modifier.fillMaxWidth().clickable(onClick = onBattlePass)) {
-            Text("БАТЛПАСС · ${BattlePassData.SEASON_NAME}", color = C.gold, fontWeight = FontWeight.Bold)
-            Text("Ур.${store.bpLevel}/40 · ${store.bpTix} tix" + if (store.bpPremium) " · PREMIUM" else "", color = C.muted, fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Glass(Modifier.weight(1f).clickable(onClick = onBattlePass)) {
+                Text("БАТЛПАСС", color = C.gold, fontWeight = FontWeight.Bold)
+                Text("ур.${store.bpLevel}/40", color = C.muted, fontSize = 11.sp)
+            }
+            Glass(Modifier.weight(1f).clickable(onClick = onInventory)) {
+                Text("ИНВЕНТАРЬ", color = C.text, fontWeight = FontWeight.Bold)
+                Text("скрытые / коллаба", color = C.muted, fontSize = 11.sp)
+            }
         }
         Glass(Modifier.fillMaxWidth().clickable(onClick = onChars)) {
             Text("ПЕРСОНАЖИ · ПОЕДАНИЕ", color = C.text, fontWeight = FontWeight.Bold)
@@ -181,17 +194,23 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onS
         }
     }
 }
+
 @Composable
-private fun BattlePassScreen(store: ProgressStore, onBack: () -> Unit) {
+private fun BattlePassScreen(store: ProgressStore, onDonate: () -> Unit, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("БАТЛПАСС", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("${BattlePassData.SEASON_NAME} · Ур.${store.bpLevel}/40", color = C.gold, fontWeight = FontWeight.Bold)
         Text("${store.bpTix} tix · " + if (store.bpPremium) "PREMIUM" else "FREE", color = C.muted, fontSize = 13.sp)
         if (!store.bpPremium) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.gold, C.mint)))
-                .clickable { if (store.spendGems(50, "BP Premium")) store.bpPremium = true }.padding(12.dp), contentAlignment = Alignment.Center) {
-                Text("КУПИТЬ PREMIUM · 50 гемов", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+            Glass(Modifier.fillMaxWidth()) {
+                Text("Premium только за донат", color = C.gold, fontWeight = FontWeight.Bold)
+                Text("Гемами и монетами пасс не покупается.", color = C.muted, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.gold, C.mint)))
+                    .clickable(onClick = onDonate).padding(12.dp), contentAlignment = Alignment.Center) {
+                    Text("ОТКРЫТЬ ДОНАТ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                }
             }
         }
         val nextLv = (store.bpLevel + 1).coerceAtMost(BattlePassData.MAX_LEVEL)
@@ -220,6 +239,42 @@ private fun BattlePassScreen(store: ProgressStore, onBack: () -> Unit) {
                             Text("ЗАБРАТЬ", color = C.cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { store.claimBp(lv.level, true) })
                         else if (store.claimedBp(lv.level, true)) Text("✓", color = C.mint, fontSize = 12.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InventoryScreen(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
+    val unlockedSkins = store.unlockedSkins()
+    val unlockedChars = store.unlockedCharacters()
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
+        Text("ИНВЕНТАРЬ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text("Здесь видны коллаба и скрытые вещи, которых нет в магазине.", color = C.muted, fontSize = 12.sp)
+        Text("ПЕРСОНАЖИ", color = C.gold, fontWeight = FontWeight.Bold)
+        CharacterData.all.filter { it.seasonOnly || it.id in unlockedChars }.forEach { ch ->
+            val have = ch.id in unlockedChars
+            Glass(Modifier.fillMaxWidth()) {
+                Text(ch.name + if (!have) " · нет" else "", color = if (have) C.text else C.muted, fontWeight = FontWeight.Bold)
+                Text(if (ch.seasonOnly) "Только батлпасс / сезон" else ch.rarity.title, color = C.gold, fontSize = 12.sp)
+                Text(ch.description, color = C.muted, fontSize = 12.sp)
+                if (have) {
+                    Text(if (store.selectedCharacter == ch.id) "ВЫБРАН" else "НАДЕТЬ", color = C.cyan, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { store.selectedCharacter = ch.id; store.saveBackup(); onChanged() })
+                }
+            }
+        }
+        Text("ОБЛИКИ КОЛЛАБЫ", color = C.gold, fontWeight = FontWeight.Bold)
+        ShopData.skins.filter { it.id in COLLAB_LOCKED || it.rarity == Rarity.EXCLUSIVE }.forEach { skin ->
+            val have = skin.id in unlockedSkins
+            Glass(Modifier.fillMaxWidth()) {
+                Text(skin.name + if (!have) " · нет" else "", color = if (have) C.text else C.muted, fontWeight = FontWeight.Bold)
+                Text("Цвет зафиксирован · перекрасить нельзя", color = C.red, fontSize = 12.sp)
+                if (have) {
+                    Text(if (store.selectedSkin == skin.id) "НАДЕТ" else "НАДЕТЬ", color = C.cyan, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { store.selectedSkin = skin.id; store.saveBackup(); onChanged() })
                 }
             }
         }
@@ -272,46 +327,107 @@ private fun Settings(store: ProgressStore, onFps: (Int) -> Unit, onBack: () -> U
 
 @Composable
 private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
     var selected by remember { mutableStateOf(store.selectedSkin) }
     var coins by remember { mutableIntStateOf(store.coins) }
     var unlocked by remember { mutableStateOf(store.unlockedSkins()) }
     var previewId by remember { mutableStateOf(selected) }
+    var donateMsg by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("МАГАЗИН", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("$coins монет · ${store.gems} гемов", color = C.gold, fontSize = 13.sp)
-        val prev = ShopData.skin(previewId)
-        Glass(Modifier.fillMaxWidth()) {
-            Text("Превью: ${prev.name}", color = C.text, fontWeight = FontWeight.Bold)
-            Text(prev.rarity.title, color = Color(prev.rarity.color), fontSize = 12.sp)
-            Spacer(Modifier.height(8.dp))
-            SkinPreview(Color(prev.headColor), Color(prev.bodyColor), Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0B1420)))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("Скины", "Яблоки", "Донат").forEachIndexed { i, name ->
+                val sel = tab == i
+                Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (sel) C.mint.copy(alpha = 0.3f) else Color(0xFF1C2B3B))
+                    .clickable { tab = i }.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text(name, color = if (sel) C.mint else C.text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
         }
-        ShopData.skins.filter { it.rarity != Rarity.EXCLUSIVE || it.id in unlocked }.forEach { skin ->
-            val isUnlocked = skin.id in unlocked
-            val isSelected = selected == skin.id
-            Glass(Modifier.fillMaxWidth().clickable { previewId = skin.id }) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color(skin.bodyColor)).border(2.dp, Color(skin.headColor), RoundedCornerShape(10.dp)))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(skin.name, color = C.text, fontWeight = FontWeight.Bold)
-                        Text(skin.rarity.title, color = Color(skin.rarity.color), fontSize = 12.sp)
-                    }
-                    when {
-                        isSelected -> Text("НАДЕТ", color = C.mint, fontSize = 12.sp)
-                        isUnlocked -> Text("НАДЕТЬ", color = C.cyan, fontSize = 12.sp, modifier = Modifier.clickable {
-                            store.selectedSkin = skin.id; selected = skin.id; previewId = skin.id; store.saveBackup(); onChanged()
-                        })
-                        skin.unlockOnlyCase -> Text("КЕЙС", color = C.muted, fontSize = 11.sp)
-                        else -> Text("${skin.price}", color = C.gold, fontSize = 13.sp, modifier = Modifier.clickable {
-                            if (store.spendCoins(skin.price, "Скин ${skin.name}")) {
-                                store.unlockSkin(skin.id); store.selectedSkin = skin.id; store.logPurchase(skin.name, skin.price); store.saveBackup()
-                                unlocked = store.unlockedSkins(); selected = skin.id; coins = store.coins; previewId = skin.id; onChanged()
+        when (tab) {
+            0 -> {
+                val prev = ShopData.skin(previewId)
+                val lockedColor = prev.id in COLLAB_LOCKED || prev.rarity == Rarity.EXCLUSIVE
+                Glass(Modifier.fillMaxWidth()) {
+                    Text("Превью: ${prev.name}", color = C.text, fontWeight = FontWeight.Bold)
+                    Text(prev.rarity.title, color = Color(prev.rarity.color), fontSize = 12.sp)
+                    if (lockedColor) Text("Цвет зафиксирован · коллаба", color = C.red, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    SkinPreview(Color(prev.headColor), Color(prev.bodyColor), Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0B1420)))
+                }
+                ShopData.skins.filter { it.rarity != Rarity.EXCLUSIVE }.forEach { skin ->
+                    val isUnlocked = skin.id in unlocked
+                    val isSelected = selected == skin.id
+                    Glass(Modifier.fillMaxWidth().clickable { previewId = skin.id }) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Color(skin.bodyColor)).border(2.dp, Color(skin.headColor), RoundedCornerShape(10.dp)))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(skin.name, color = C.text, fontWeight = FontWeight.Bold)
+                                Text(skin.rarity.title, color = Color(skin.rarity.color), fontSize = 12.sp)
                             }
-                        })
+                            when {
+                                isSelected -> Text("НАДЕТ", color = C.mint, fontSize = 12.sp)
+                                isUnlocked -> Text("НАДЕТЬ", color = C.cyan, fontSize = 12.sp, modifier = Modifier.clickable {
+                                    store.selectedSkin = skin.id; selected = skin.id; previewId = skin.id; store.saveBackup(); onChanged()
+                                })
+                                skin.unlockOnlyCase -> Text("КЕЙС", color = C.muted, fontSize = 11.sp)
+                                else -> Text("${skin.price}", color = C.gold, fontSize = 13.sp, modifier = Modifier.clickable {
+                                    if (store.spendCoins(skin.price, "Скин ${skin.name}")) {
+                                        store.unlockSkin(skin.id); store.selectedSkin = skin.id; store.logPurchase(skin.name, skin.price); store.saveBackup()
+                                        unlocked = store.unlockedSkins(); selected = skin.id; coins = store.coins; previewId = skin.id; onChanged()
+                                    }
+                                })
+                            }
+                        }
                     }
                 }
+            }
+            1 -> {
+                ShopData.appleSkins.filter { it.id != "krab_burger" }.forEach { a ->
+                    Glass(Modifier.fillMaxWidth()) {
+                        Text(a.name, color = C.text, fontWeight = FontWeight.Bold)
+                        Text(if (store.selectedApple == a.id) "НАДЕТО" else "${a.price} монет", color = C.gold, fontSize = 12.sp,
+                            modifier = Modifier.clickable {
+                                if (a.price == 0 || store.spendCoins(a.price, "Яблоко ${a.name}")) {
+                                    store.selectedApple = a.id; store.saveBackup(); onChanged()
+                                }
+                            })
+                    }
+                }
+                Text("Крабсбургер — только сезон, смотри инвентарь.", color = C.muted, fontSize = 12.sp)
+            }
+            else -> {
+                Text("ДОНАТ", color = C.gold, fontWeight = FontWeight.Black)
+                Text("Гемы и монеты — донат. Premium пасса гемами не продаётся.", color = C.muted, fontSize = 12.sp)
+                Glass(Modifier.fillMaxWidth()) {
+                    Text("Premium батлпасс", color = C.text, fontWeight = FontWeight.Bold)
+                    Text("Только донат. Не за гемы.", color = C.red, fontSize = 12.sp)
+                    if (store.bpPremium) Text("УЖЕ АКТИВЕН", color = C.mint, fontWeight = FontWeight.Bold)
+                    else Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.gold, C.mint)))
+                        .clickable {
+                            store.bpPremium = true
+                            store.saveBackup()
+                            donateMsg = "Premium активирован донатом (оплата ЛунтикСтор — следующий этап)"
+                            onChanged()
+                        }.padding(12.dp), contentAlignment = Alignment.Center) {
+                        Text("КУПИТЬ ДОНАТОМ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                    }
+                }
+                listOf("100 гемов" to 100, "500 гемов" to 500, "1000 монет" to 0).forEach { (title, gems) ->
+                    Glass(Modifier.fillMaxWidth().clickable {
+                        if (gems > 0) store.addGems(gems, "Донат $title") else store.addCoins(1000, "Донат монеты")
+                        donateMsg = "Начислено: $title (заглушка доната)"
+                        coins = store.coins
+                        onChanged()
+                    }) {
+                        Text(title, color = C.text, fontWeight = FontWeight.Bold)
+                        Text("Донат-пакет", color = C.gold, fontSize = 12.sp)
+                    }
+                }
+                if (donateMsg.isNotEmpty()) Text(donateMsg, color = C.muted, fontSize = 12.sp)
             }
         }
     }
@@ -330,7 +446,6 @@ private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Uni
             Glass(Modifier.fillMaxWidth()) {
                 Text(c.name, color = C.text, fontWeight = FontWeight.Bold)
                 Text("${c.price} монет", color = C.gold, fontSize = 13.sp)
-                Text("Шансы:", color = C.muted, fontSize = 11.sp)
                 c.weights.entries.sortedByDescending { it.value }.forEach { (r, w) ->
                     Text("  ${r.title}: ${w * 100 / total}%", color = Color(r.color), fontSize = 12.sp)
                 }
@@ -357,24 +472,15 @@ private fun Chars(store: ProgressStore, onChanged: () -> Unit, onPlay: () -> Uni
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("ПЕРСОНАЖИ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
-        // Спанч Боб и сезонные — только если уже разблокированы через баттлпасс
-        CharacterData.visibleForSelect(store.unlockedCharacters()).forEach { ch ->
+        Text("Сезонные (Спанч Боб) в магазине не продаются — только инвентарь, если уже есть.", color = C.muted, fontSize = 12.sp)
+        CharacterData.visibleForSelect(store.unlockedCharacters()).filter { !it.seasonOnly }.forEach { ch ->
             val unlocked = store.isCharacterUnlocked(ch.id)
             val isSel = selected == ch.id
             Glass(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(ch.bodyColor)).border(2.dp, Color(ch.headColor), RoundedCornerShape(12.dp)))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(ch.name, color = C.text, fontWeight = FontWeight.Bold)
-                        Text(ch.rarity.title, color = Color(ch.rarity.color), fontSize = 12.sp)
-                        Text(ch.description, color = C.muted, fontSize = 12.sp)
-                        ch.ability?.let { ab ->
-                            Text("Ульта: ${ab.name} (КД ${ab.cooldownSec}с)", color = C.cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
+                Text(ch.name, color = C.text, fontWeight = FontWeight.Bold)
+                Text(ch.rarity.title, color = Color(ch.rarity.color), fontSize = 12.sp)
+                Text(ch.description, color = C.muted, fontSize = 12.sp)
+                ch.ability?.let { Text("Ульта: ${it.name} (КД ${it.cooldownSec}с)", color = C.cyan, fontSize = 12.sp) }
                 when {
                     isSel -> Text("ВЫБРАН", color = C.mint, fontWeight = FontWeight.Bold)
                     unlocked -> Text("ВЫБРАТЬ", color = C.cyan, fontWeight = FontWeight.Bold, modifier = Modifier.clickable {
