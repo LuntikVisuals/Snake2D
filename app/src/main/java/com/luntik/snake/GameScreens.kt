@@ -192,7 +192,7 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(skin.headColor), Color(skin.bodyColor), foodColor = Color(apple.color), foodShape = apple.shape,
-                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes)
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg)
                 if (paused && phase == Phase.RUN) {
                     Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
                         Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
@@ -375,7 +375,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(ch.headColor), Color(ch.bodyColor), foodColor = Color(ShopData.apple(store.selectedApple).color), foodShape = ShopData.apple(store.selectedApple).shape,
-                    progress = if (phase == Phase.DEAD) 1f else progress, showHitboxes = store.showHitboxes,
+                    progress = if (phase == Phase.DEAD) 1f else progress, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg,
                     extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
                 if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
@@ -455,7 +455,7 @@ internal fun KrustyPlay(store: ProgressStore, onExit: () -> Unit) {
                 score += ProgressStore.POINTS_PER_APPLE
                 step++
                 msg = "Дальше: ${names[order[step % order.size]]}"
-                foodKind = listOf("bun", "patty", "cheese").random()
+                foodKind = order[step % order.size]
                 food = spawn(snake)
             }
         }
