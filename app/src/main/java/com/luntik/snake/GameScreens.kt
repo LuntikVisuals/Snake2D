@@ -351,12 +351,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                     Color(ch.headColor), Color(ch.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress,
                     extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
                 if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-                if (paused && phase == Phase.RUN) {
-                    Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
-                        Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                    }
-                }
-                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN }, rewardLine)
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
             }
         }
         Spacer(Modifier.height(6.dp))
