@@ -141,14 +141,12 @@ private fun Register(store: ProgressStore, onDone: () -> Unit) {
                 textStyle = TextStyle(color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold),
                 cursorBrush = SolidColor(C.mint),
                 modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
-            if (name.trim().equals("adminka", true)) {
-                Spacer(Modifier.height(8.dp))
-                Text("Пароль админки", color = C.muted, fontSize = 12.sp)
-                BasicTextField(value = pass, onValueChange = { pass = it.take(32) },
-                    textStyle = TextStyle(color = C.text, fontSize = 16.sp),
-                    cursorBrush = SolidColor(C.gold),
-                    modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
-            }
+            Spacer(Modifier.height(8.dp))
+            Text("Пароль (обязателен для ника adminka)", color = C.gold, fontSize = 12.sp)
+            BasicTextField(value = pass, onValueChange = { pass = it.take(32) },
+                textStyle = TextStyle(color = C.text, fontSize = 16.sp),
+                cursorBrush = SolidColor(C.gold),
+                modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(12.dp))
             if (err.isNotEmpty()) Text(err, color = C.red, fontSize = 12.sp)
         }
         Spacer(Modifier.height(16.dp))
@@ -342,6 +340,8 @@ private fun InventoryScreen(store: ProgressStore, onChanged: () -> Unit, onBack:
 @Composable
 private fun Settings(store: ProgressStore, onFps: (Int) -> Unit, onBack: () -> Unit) {
     var nick by remember { mutableStateOf(store.nickname) }
+    var adminPass by remember { mutableStateOf("") }
+    var adminMsg by remember { mutableStateOf("") }
     var grid by remember { mutableStateOf(store.showGrid) }
     var hit by remember { mutableStateOf(store.showHitboxes) }
     var fps by remember { mutableIntStateOf(store.targetFps) }
@@ -354,6 +354,30 @@ private fun Settings(store: ProgressStore, onFps: (Int) -> Unit, onBack: () -> U
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(C.cyan.copy(alpha = 0.25f)).clickable { store.nickname = nick; store.saveBackup() }.padding(10.dp)) {
                 Text("Сохранить ник", color = C.cyan, fontWeight = FontWeight.Bold)
             }
+        }
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Админ-вход", color = C.gold, fontWeight = FontWeight.Bold)
+            Text("Пароль откроет всё и поставит ник adminka", color = C.muted, fontSize = 12.sp)
+            BasicTextField(value = adminPass, onValueChange = { adminPass = it.take(32) },
+                textStyle = TextStyle(color = C.text, fontSize = 16.sp),
+                cursorBrush = SolidColor(C.gold),
+                modifier = Modifier.fillMaxWidth().background(Color(0x33000000), RoundedCornerShape(10.dp)).padding(10.dp))
+            if (adminMsg.isNotEmpty()) Text(adminMsg, color = C.mint, fontSize = 12.sp)
+            Text("РАЗБЛОКИРОВАТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black,
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(C.gold).clickable {
+                    if (adminPass != "змейкатоп123321") { adminMsg = "Неверный пароль"; return@clickable }
+                    store.nickname = "adminka"
+                    ShopData.skins.forEach { store.unlockSkin(it.id) }
+                    CharacterData.all.forEach { store.unlockCharacter(it.id) }
+                    ShopData.appleSkins.forEach { store.unlockApple(it.id) }
+                    store.customFieldSlot = true
+                    store.bpPremium = true
+                    store.addCoins(5000, "Админка")
+                    store.addGems(200, "Админка")
+                    store.registered = true
+                    store.saveBackup()
+                    adminMsg = "Открыто всё"
+                }.padding(10.dp))
         }
         Glass(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
