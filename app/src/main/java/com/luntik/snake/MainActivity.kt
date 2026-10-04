@@ -1,10 +1,14 @@
 package com.luntik.snake
 
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.widget.ImageView
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +33,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 
 internal const val COLS = 16
 internal const val ROWS = 20
@@ -356,7 +362,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
         Text("МАГАЗИН", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("$coins монет · ${store.gems} гемов", color = C.gold, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Скины", "Яблоки", "Донат").forEachIndexed { i, name ->
+            listOf("Скины", "Яблоки", "Персонализация", "Донат").forEachIndexed { i, name ->
                 val sel = tab == i
                 Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (sel) C.mint.copy(alpha = 0.3f) else Color(0xFF1C2B3B))
                     .clickable { tab = i }.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -419,6 +425,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                 }
                 Text("Крабсбургер — только сезон, смотри инвентарь.", color = C.muted, fontSize = 12.sp)
             }
+            2 -> PersonalizationTab(store) { coins = store.coins; onChanged() }
             else -> {
                 Text("ДОНАТ", color = C.gold, fontWeight = FontWeight.Black)
                 Text("Гемы и монеты — донат. Premium пасса гемами не продаётся.", color = C.muted, fontSize = 12.sp)
@@ -444,7 +451,16 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
 private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
     var spinning by remember { mutableStateOf(false) }
+    var reel by remember { mutableStateOf("") }
     var coins by remember { mutableIntStateOf(store.coins) }
+    LaunchedEffect(spinning) {
+        if (!spinning) return@LaunchedEffect
+        val names = ShopData.skins.map { it.name }
+        repeat(14) {
+            reel = names.random()
+            delay(if (it < 8) 70 else 140)
+        }
+    }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("КЕЙСЫ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
@@ -462,16 +478,23 @@ private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Uni
                     if (spinning) return@clickable
                     if (!store.spendCoins(c.price, "Кейс ${c.name}")) { msg = "Мало монет"; return@clickable }
                     spinning = true
-                    msg = "Крутим ${c.name}..."
-                    val drop = ShopData.openCase(c)
-                    val dup = store.isUnlocked(drop.id)
-                    if (dup) store.addCoins(20, "Дубликат ${drop.name}") else store.unlockSkin(drop.id)
-                    store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup(); coins = store.coins
-                    msg = if (dup) "ВЫПАЛО: дубликат ${drop.name} (+20)" else "ВЫПАЛО: ${drop.name} [${drop.rarity.title}]"
-                    spinning = false
-                    onChanged()
+                    coins = store.coins
                 }.padding(12.dp), contentAlignment = Alignment.Center) {
-                    Text(if (spinning) "..." else "ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                    Text(if (spinning) "КРУТИМ" else "ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                }
+                if (spinning) {
+                    LaunchedEffect(c.id) {
+                        delay(1600)
+                        val drop = ShopData.openCase(c)
+                        val dup = store.isUnlocked(drop.id)
+                        if (dup) store.addCoins(20, "Дубликат ${drop.name}") else store.unlockSkin(drop.id)
+                        store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup()
+                        coins = store.coins
+                        msg = if (dup) "ВЫПАЛО: дубликат ${drop.name} (+20)" else "ВЫПАЛО: ${drop.name} [${drop.rarity.title}]"
+                        reel = drop.name
+                        spinning = false
+                        onChanged()
+                    }
                 }
             }
         }
@@ -520,8 +543,33 @@ private fun ProfileScreen(store: ProgressStore, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
         Text("ПРОФИЛЬ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        val pickAvatar = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) store.avatarUri = uri.toString()
+        }
+        val pickBanner = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) store.bannerUri = uri.toString()
+        }
         Glass(Modifier.fillMaxWidth()) {
-            Text(store.nickname, color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            if (store.bannerUri.isNotBlank()) {
+                AndroidView(factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_CROP } },
+                    update = { it.setImageURI(Uri.parse(store.bannerUri)) },
+                    modifier = Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(12.dp)))
+                Spacer(Modifier.height(8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (store.avatarUri.isNotBlank()) {
+                    AndroidView(factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.CENTER_CROP } },
+                        update = { it.setImageURI(Uri.parse(store.avatarUri)) },
+                        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(28.dp)))
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(store.nickname, color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("АВАТАР", color = C.cyan, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { pickAvatar.launch("image/*") })
+                Text("БАННЕР", color = C.gold, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { pickBanner.launch("image/*") })
+            }
             Text("Уровень ${store.level} · ${store.xp} XP", color = C.cyan)
             Text("Батлпасс ур.${store.bpLevel} · ${BattlePassData.SEASON_NAME}", color = C.gold)
             Text("Сезон: ${BattlePassData.SEASON_ID}", color = C.muted, fontSize = 12.sp)
@@ -554,5 +602,46 @@ private fun LeaderScreen(store: ProgressStore, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun PersonalizationTab(store: ProgressStore, onChanged: () -> Unit) {
+    val grids = listOf(
+        "Мята" to 0x2867F5B4, "Циан" to 0x2865DDFB, "Золото" to 0x28FFD36E, "Красный" to 0x28FF6684, "Белый" to 0x22FFFFFF
+    )
+    val fields = listOf("Ночь" to 0xFF0B1420, "Бездна" to 0xFF061018, "Песок" to 0xFF1A140C, "Лагуна" to 0xFF0C1C22)
+    val screens = listOf("Стандарт" to 0xFF070B12, "Изумруд" to 0xFF07140F, "Фиолет" to 0xFF120818, "Закат" to 0xFF1A0C10)
+    val pickField = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null && store.customFieldSlot) store.fieldPhotoUri = uri.toString()
+    }
+    Text("Сетка — 5 цветов", color = C.text, fontWeight = FontWeight.Bold)
+    grids.forEach { (name, col) ->
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(150, "Сетка $name")) { store.gridColor = col; onChanged() } }) {
+            Text("$name · 150", color = Color(col), fontWeight = FontWeight.Bold)
+        }
+    }
+    Text("Фон поля", color = C.text, fontWeight = FontWeight.Bold)
+    fields.forEach { (name, col) ->
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Поле $name")) { store.fieldBg = col; onChanged() } }) {
+            Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
+        }
+    }
+    Text("Фон экрана", color = C.text, fontWeight = FontWeight.Bold)
+    screens.forEach { (name, col) ->
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Экран $name")) { store.screenBg = col; onChanged() } }) {
+            Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
+        }
+    }
+    Glass(Modifier.fillMaxWidth()) {
+        Text("Своё фото поля", color = C.text, fontWeight = FontWeight.Bold)
+        Text(if (store.customFieldSlot) "Слот куплен — поставь фото" else "Купить слот · 2000 монет", color = C.gold, fontSize = 12.sp,
+            modifier = Modifier.clickable {
+                if (!store.customFieldSlot) {
+                    if (store.spendCoins(2000, "Слот фото поля")) store.customFieldSlot = true
+                } else pickField.launch("image/*")
+                onChanged()
+            })
     }
 }
