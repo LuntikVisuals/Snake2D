@@ -365,18 +365,19 @@ private fun Settings(store: ProgressStore, onFps: (Int) -> Unit, onBack: () -> U
             if (adminMsg.isNotEmpty()) Text(adminMsg, color = C.mint, fontSize = 12.sp)
             Text("РАЗБЛОКИРОВАТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black,
                 modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(C.gold).clickable {
-                    if (adminPass != "змейкатоп123321") { adminMsg = "Неверный пароль"; return@clickable }
+                    if (adminPass.trim() != "змейкатоп123321") { adminMsg = "Неверный пароль"; return@clickable }
                     store.nickname = "adminka"
                     ShopData.skins.forEach { store.unlockSkin(it.id) }
                     CharacterData.all.forEach { store.unlockCharacter(it.id) }
                     ShopData.appleSkins.forEach { store.unlockApple(it.id) }
                     store.customFieldSlot = true
                     store.bpPremium = true
-                    store.addCoins(5000, "Админка")
-                    store.addGems(200, "Админка")
+                    store.addCoins(50000, "Админка")
+                    store.addGems(500, "Админка")
+                    store.selectedSkin = "default"
                     store.registered = true
                     store.saveBackup()
-                    adminMsg = "Открыто всё"
+                    adminMsg = "Готово: ${store.unlockedSkins().size} скинов, ${store.coins} монет. Смотри инвентарь."
                 }.padding(10.dp))
         }
         Glass(Modifier.fillMaxWidth()) {
