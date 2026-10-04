@@ -370,7 +370,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
             Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
                 .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                .then(if (control == "gestures") Modifier.tapDir(phase == Phase.RUN && !paused, { turn(it) }, dir) else Modifier.swipeDir(phase == Phase.RUN && !paused) { turn(it) })) {
+                .swipeDir(phase == Phase.RUN) { turn(it) }) {
                 val mainFood = foods.firstOrNull() ?: Cell(0, 0)
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
