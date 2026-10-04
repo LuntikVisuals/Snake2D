@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,11 +53,13 @@ internal fun CtrlBtn(label: String, size: Int, onClick: () -> Unit) {
 
 internal fun Modifier.tapDir(enabled: Boolean, onDir: (Dir) -> Unit, current: Dir): Modifier = pointerInput(enabled, current) {
     if (!enabled) return@pointerInput
-    detectTapGestures { offset ->
-        val cx = size.width / 2f; val cy = size.height / 2f
-        val dx = offset.x - cx; val dy = offset.y - cy
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val dx = down.position.x - size.width / 2f
+        val dy = down.position.y - size.height / 2f
         if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) onDir(if (dx > 0) Dir.RIGHT else Dir.LEFT)
         else onDir(if (dy > 0) Dir.DOWN else Dir.UP)
+        down.consume()
     }
 }
 
@@ -174,7 +178,7 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
             }
         }
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Color(store.screenBg)).statusBarsPadding().padding(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
             Text("${mode.title} · $score", color = C.mint, fontWeight = FontWeight.Bold)
