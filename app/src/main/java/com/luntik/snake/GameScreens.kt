@@ -206,7 +206,7 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(skin.headColor), Color(skin.bodyColor), foodColor = Color(apple.color), foodShape = apple.shape,
-                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg, fieldPhoto = fieldPhoto, fieldPhoto = fieldPhoto)
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg, fieldPhoto = fieldPhoto)
                 if (paused && phase == Phase.RUN) {
                     Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
                         Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
