@@ -79,7 +79,39 @@ class ProgressStore(ctx: Context) {
 
     fun addXp(n: Int): Boolean {
         if (n <= 0) return false
-        val before = level; xp += n; saveBackup(); return level > before
+        val before = level
+        xp += n
+        val after = level
+        if (after > before) {
+            for (lv in (before + 1)..after) {
+                if (lv % 5 == 0) grantLevelCrate(lv)
+            }
+        }
+        saveBackup()
+        return after > before
+    }
+    fun grantLevelCrate(lv: Int) {
+        val coinsGain = 20 + lv
+        val gemsGain = if (lv % 10 == 0) 3 else 1
+        addCoins(coinsGain, "XP-ящик ур.$lv")
+        addGems(gemsGain, "XP-ящик ур.$lv")
+        val roll = (1..100).random()
+        val rarity = when {
+            roll <= 3 -> Rarity.SECRET
+            roll <= 8 -> Rarity.LEGENDARY
+            roll <= 18 -> Rarity.EPIC
+            roll <= 33 -> Rarity.RARE
+            else -> Rarity.COMMON
+        }
+        val drop = ShopData.skins.filter { it.rarity == rarity && !it.unlockOnlyCase }.randomOrNull()
+        if (drop != null && !isUnlocked(drop.id)) unlockSkin(drop.id)
+    }
+    fun nextLevelRewards(from: Int = level): List<String> {
+        return (1..8).map { i ->
+            val lv = from + i
+            val crate = if (lv % 5 == 0) " · XP-ящик" else ""
+            "Ур.$lv: ${20 + lv} монет$crate"
+        }
     }
 
     var nickname: String
