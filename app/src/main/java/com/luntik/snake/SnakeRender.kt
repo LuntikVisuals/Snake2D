@@ -40,8 +40,8 @@ internal fun SmoothSnakeBoard(
                 androidx.compose.ui.geometry.CornerRadius(cell * 0.12f, cell * 0.12f))
         }
         val fx = food.x * cw + cw / 2f; val fy = food.y * ch + ch / 2f; val ar = cell * 0.32f
-        drawCircle(Color(0xFFFF5252).copy(alpha = 0.18f), ar * 1.55f, Offset(fx, fy))
-        drawCircle(Brush.radialGradient(listOf(Color(0xFFFF8A80), Color(0xFFE53935), Color(0xFFB71C1C)), Offset(fx - ar * 0.25f, fy - ar * 0.3f), ar * 1.2f), ar, Offset(fx, fy + ar * 0.05f))
+        drawCircle(foodColor.copy(alpha = 0.22f), ar * 1.55f, Offset(fx, fy))
+        drawCircle(Brush.radialGradient(listOf(foodColor.copy(alpha = 0.95f), foodColor, foodColor.copy(alpha = 0.7f)), Offset(fx - ar * 0.25f, fy - ar * 0.3f), ar * 1.2f), ar, Offset(fx, fy + ar * 0.05f))
         drawCircle(Color.White.copy(alpha = 0.45f), ar * 0.22f, Offset(fx - ar * 0.28f, fy - ar * 0.22f))
         drawLine(Color(0xFF5D4037), Offset(fx, fy - ar * 0.85f), Offset(fx + ar * 0.12f, fy - ar * 1.25f), cell * 0.06f, cap = StrokeCap.Round)
         val leaf = Path().apply {
