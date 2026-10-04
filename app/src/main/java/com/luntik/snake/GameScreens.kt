@@ -67,11 +67,12 @@ internal fun Modifier.swipeDir(enabled: Boolean, onDir: (Dir) -> Unit): Modifier
 }
 
 @Composable
-internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit) {
+internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit, rewardLine: String = "") {
     Box(Modifier.fillMaxSize().background(Color(0x99070D16)), contentAlignment = Alignment.Center) {
         Glass(Modifier.fillMaxWidth(0.85f)) {
             Text(if (phase == Phase.READY) "ГОТОВ?" else "КОНЕЦ", color = C.text, fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text(if (phase == Phase.READY) "Свайп или кнопки" else "Счёт $score", color = C.muted)
+            Text(if (phase == Phase.READY) "Свайп или кнопки" else "Рекорд партии: $score", color = C.muted)
+            if (phase == Phase.DEAD && rewardLine.isNotEmpty()) Text(rewardLine, color = C.gold, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable(onClick = onStart).padding(14.dp),
@@ -94,6 +95,8 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     var food by remember { mutableStateOf(Cell(10, 8)) }
     var progress by remember { mutableFloatStateOf(1f) }
     var rewarded by remember { mutableStateOf(false) }
+    var paused by remember { mutableStateOf(false) }
+    var rewardLine by remember { mutableStateOf("") }
     val startMs = remember { System.currentTimeMillis() }
     fun spawn(body: List<Cell>): Cell {
         var c: Cell; do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)) } while (c in body); return c
@@ -104,19 +107,22 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     }
     fun reset() {
         snake = listOf(Cell(4, 10), Cell(3, 10), Cell(2, 10)); dir = Dir.RIGHT; next = Dir.RIGHT; food = spawn(snake)
-        score = 0; rewarded = false; progress = 1f; phase = Phase.READY
+        score = 0; rewarded = false; progress = 1f; paused = false; rewardLine = ""; phase = Phase.READY
     }
     fun finish() {
         if (phase == Phase.DEAD) return; phase = Phase.DEAD; progress = 1f; if (rewarded) return; rewarded = true
-        val foodEaten = score / 10
+        val foodEaten = score / ProgressStore.POINTS_PER_APPLE
         if (AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, foodEaten)) {
-            store.addCoins((score * mode.coinMul).toInt().coerceAtLeast(if (score > 0) 3 else 0), "Партия ${mode.title}")
-            store.addXp((score * mode.xpMul).toInt().coerceAtLeast(3)); store.pushScore(store.nickname, score, mode.name)
+            val before = store.level
+            val (c, gm, tx) = store.grantMatchRewards(score, mode)
+            val up = store.level > before
+            rewardLine = "+$c монет · +$gm гемов · +$tx tix" + if (up) " · уровень!" else ""
+            store.pushScore(store.nickname, score, mode.name)
         }
         store.recordGameEnd(false, foodEaten, snake.size); store.checkAchievementsAfterGame(score, snake.size, false); store.saveBackup()
     }
-    LaunchedEffect(phase, mode) {
-        while (phase == Phase.RUN) {
+    LaunchedEffect(phase, mode, paused) {
+        while (phase == Phase.RUN && !paused) {
             dir = next
             val h = snake.first()
             var nx = h.x; var ny = h.y
@@ -133,10 +139,10 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
             progress = 0f
             snake = listOf(nh) + body
             smoothStep(mode.speedMs.coerceAtLeast(60L), store.targetFps) { progress = it }
-            if (phase != Phase.RUN) break
+            if (phase != Phase.RUN || paused) break
             progress = 1f
             if (eat) {
-                score += 10
+                score += ProgressStore.POINTS_PER_APPLE
                 val free = buildList {
                     for (y in 0 until rows) for (x in 0 until cols) {
                         val c = Cell(x, y); if (c !in snake) add(c)
@@ -150,6 +156,9 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
             Text("${mode.title} · $score", color = C.mint, fontWeight = FontWeight.Bold)
+            if (phase == Phase.RUN) {
+                Text(if (paused) "▶" else "⏸", color = C.text, fontSize = 22.sp, modifier = Modifier.clickable { paused = !paused }.padding(6.dp))
+            }
             Text("рек ${store.bestScore(mode.name)}", color = C.muted, fontSize = 12.sp)
         }
         Spacer(Modifier.height(6.dp))
@@ -160,7 +169,12 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(skin.headColor), Color(skin.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
-                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
+                if (paused && phase == Phase.RUN) {
+                    Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
+                        Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN }, rewardLine)
             }
         }
         Spacer(Modifier.height(10.dp)); ControlPad { turn(it) }; Spacer(Modifier.height(8.dp))
@@ -224,9 +238,9 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
     }
     fun finish() {
         if (phase == Phase.DEAD) return; phase = Phase.DEAD; progress = 1f; if (rewarded) return; rewarded = true
-        if (AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, score / 10)) {
-            store.addCoins((score * GameMode.FEEDING.coinMul).toInt().coerceAtLeast(if (score > 0) 5 else 0), "Поедание")
-            store.addXp((score * GameMode.FEEDING.xpMul).toInt().coerceAtLeast(5)); store.pushScore(store.nickname, score, GameMode.FEEDING.name)
+        if (AntiCheat.validateScore(score, System.currentTimeMillis() - startMs, score / ProgressStore.POINTS_PER_APPLE)) {
+            store.grantMatchRewards(score, GameMode.FEEDING)
+            store.pushScore(store.nickname, score, GameMode.FEEDING.name)
         }
         store.recordGameEnd(false, score / 10, snake.size); store.saveBackup()
     }
@@ -260,7 +274,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
             progress = 0f
             snake = listOf(pNext) + pBody
             if (grow) {
-                score += 10; foods = foods.toMutableList().also { it.removeAt(eatIdx) }
+                score += ProgressStore.POINTS_PER_APPLE; foods = foods.toMutableList().also { it.removeAt(eatIdx) }
                 if (foods.isEmpty() || eventLeft > 0) foods = foods + freeCell(snake.toSet() + enemies.flatMap { it.body })
             }
             aiTick++
@@ -302,7 +316,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                     if (nh in newBody.drop(1)) newBody = listOf(nh, Cell(hx, hy))
                     var sc = e.score
                     if (eGrow) {
-                        sc += 10; foods = foods.toMutableList().also { if (eEat in it.indices) it.removeAt(eEat) }
+                        sc += ProgressStore.POINTS_PER_APPLE; foods = foods.toMutableList().also { if (eEat in it.indices) it.removeAt(eEat) }
                         if (foods.size < 3) foods = foods + freeCell(snake.toSet() + enemies.flatMap { it.body })
                     }
                     e.copy(body = newBody, dir = ed, score = sc)
@@ -337,7 +351,12 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                     Color(ch.headColor), Color(ch.bodyColor), progress = if (phase == Phase.DEAD) 1f else progress,
                     extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
                 if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
-                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
+                if (paused && phase == Phase.RUN) {
+                    Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
+                        Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN }, rewardLine)
             }
         }
         Spacer(Modifier.height(6.dp))
