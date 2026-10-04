@@ -23,13 +23,14 @@ internal fun SmoothSnakeBoard(
     headColor: Color, bodyColor: Color, foodColor: Color = Color(0xFFE53935),
     progress: Float = 1f, obstacles: Set<RenderCell> = emptySet(),
     extraSnakes: List<Pair<List<RenderCell>, Color>> = emptyList(), showGrid: Boolean = false,
-    showHitboxes: Boolean = false, foodShape: String = "apple"
+    showHitboxes: Boolean = false, foodShape: String = "apple",
+    appearance: String = "gliist", gridColor: Long = 0x22FFFFFF, fieldBg: Long = 0xFF0B1420
 ) {
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width / cols; val ch = size.height / rows; val cell = minOf(cw, ch)
-        drawRect(Brush.radialGradient(listOf(Color(0xFF152028), Color(0xFF0A1014)), Offset(size.width / 2f, size.height / 2f), size.maxDimension * 0.75f))
+        drawRect(Color(fieldBg))
         if (showGrid) {
-            val g = Color.White.copy(alpha = 0.07f)
+            val g = Color(gridColor)
             for (x in 0..cols) drawLine(g, Offset(x * cw, 0f), Offset(x * cw, size.height), 1f)
             for (y in 0..rows) drawLine(g, Offset(0f, y * ch), Offset(size.width, y * ch), 1f)
         } else {
@@ -103,6 +104,14 @@ internal fun SmoothSnakeBoard(
             points.add(Offset(neck.x + (headBase.x - neck.x) * (0.55f + 0.45f * p), neck.y + (headBase.y - neck.y) * (0.55f + 0.45f * p)))
             for (i in 1 until snake.size) points.add(centerOf(snake[i]))
         }
+        if (appearance == "retro") {
+            snake.forEachIndexed { i, c ->
+                val col = if (i == 0) headColor else bodyColor
+                drawRect(col, Offset(c.x * cw + cw * 0.12f, c.y * ch + ch * 0.12f), Size(cw * 0.76f, ch * 0.76f))
+            }
+        } else if (appearance == "retro2") {
+            points.forEachIndexed { i, pt -> drawCircle(if (i == 0) headColor else bodyColor, cell * 0.38f, pt) }
+        } else {
         val bodyPath = Path()
         if (points.size == 1) { bodyPath.moveTo(points[0].x, points[0].y); bodyPath.lineTo(points[0].x + 0.1f, points[0].y) }
         else {
@@ -139,6 +148,17 @@ internal fun SmoothSnakeBoard(
         }
         if (points.size >= 2) drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
         if (showHitboxes) points.forEach { drawCircle(Color.Yellow.copy(alpha = 0.35f), cell * 0.36f, it, style = Stroke(width = 2f)) }
+        }
+        val hp2 = points.first()
+        when (appearance) {
+            "spongebob" -> { drawRect(Color(0xFFFFEB3B), Offset(hp2.x - cell * 0.28f, hp2.y - cell * 0.28f), Size(cell * 0.56f, cell * 0.56f)); drawCircle(Color.White, cell * 0.08f, Offset(hp2.x - cell * 0.08f, hp2.y - cell * 0.05f)); drawCircle(Color.White, cell * 0.08f, Offset(hp2.x + cell * 0.1f, hp2.y - cell * 0.05f)) }
+            "patrick" -> drawCircle(Color(0xFFF48FB1), cell * 0.34f, hp2)
+            "squidward" -> drawOval(Color(0xFFC6B48A), Offset(hp2.x - cell * 0.16f, hp2.y - cell * 0.4f), Size(cell * 0.5f, cell * 0.8f))
+            "gary" -> drawCircle(Color(0xFF81D4FA), cell * 0.3f, hp2)
+            "krabs" -> drawCircle(Color(0xFFE53935), cell * 0.32f, hp2)
+            "drawn" -> drawCircle(Color.Black.copy(alpha = 0.8f), cell * 0.3f, hp2, style = Stroke(width = 3f))
+            "plankton" -> drawCircle(Color(0xFF66BB6A), cell * 0.22f, hp2)
+        }
     }
 }
 
@@ -148,6 +168,14 @@ internal fun SkinPreview(headColor: Color, bodyColor: Color, modifier: Modifier 
         val cell = size.minDimension / 5.5f
         val cy = size.height / 2f
         val pts = (0..5).map { i -> Offset(size.width * 0.12f + i * cell * 0.75f, cy) }
+        if (appearance == "retro") {
+            snake.forEachIndexed { i, c ->
+                val col = if (i == 0) headColor else bodyColor
+                drawRect(col, Offset(c.x * cw + cw * 0.12f, c.y * ch + ch * 0.12f), Size(cw * 0.76f, ch * 0.76f))
+            }
+        } else if (appearance == "retro2") {
+            points.forEachIndexed { i, pt -> drawCircle(if (i == 0) headColor else bodyColor, cell * 0.38f, pt) }
+        } else {
         val bodyPath = Path()
         bodyPath.moveTo(pts.first().x, pts.first().y)
         for (i in 1 until pts.size) {
