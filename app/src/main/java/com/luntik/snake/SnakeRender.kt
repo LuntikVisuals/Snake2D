@@ -22,7 +22,8 @@ internal fun SmoothSnakeBoard(
     cols: Int, rows: Int, snake: List<RenderCell>, food: RenderCell, dir: RenderDir,
     headColor: Color, bodyColor: Color, foodColor: Color = Color(0xFFE53935),
     progress: Float = 1f, obstacles: Set<RenderCell> = emptySet(),
-    extraSnakes: List<Pair<List<RenderCell>, Color>> = emptyList(), showGrid: Boolean = false
+    extraSnakes: List<Pair<List<RenderCell>, Color>> = emptyList(), showGrid: Boolean = false,
+    showHitboxes: Boolean = false, foodShape: String = "apple"
 ) {
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width / cols; val ch = size.height / rows; val cell = minOf(cw, ch)
@@ -41,7 +42,36 @@ internal fun SmoothSnakeBoard(
         }
         val fx = food.x * cw + cw / 2f; val fy = food.y * ch + ch / 2f; val ar = cell * 0.32f
         drawCircle(foodColor.copy(alpha = 0.22f), ar * 1.55f, Offset(fx, fy))
-        drawCircle(Brush.radialGradient(listOf(foodColor.copy(alpha = 0.95f), foodColor, foodColor.copy(alpha = 0.7f)), Offset(fx - ar * 0.25f, fy - ar * 0.3f), ar * 1.2f), ar, Offset(fx, fy + ar * 0.05f))
+        when (foodShape) {
+            "berry" -> {
+                drawCircle(foodColor, ar * 0.55f, Offset(fx - ar * 0.35f, fy))
+                drawCircle(foodColor, ar * 0.55f, Offset(fx + ar * 0.28f, fy + ar * 0.1f))
+                drawCircle(foodColor, ar * 0.5f, Offset(fx, fy - ar * 0.35f))
+            }
+            "mushroom" -> {
+                drawCircle(foodColor, ar * 0.7f, Offset(fx, fy - ar * 0.15f))
+                drawRect(Color(0xFFFFE0B2), Offset(fx - ar * 0.22f, fy), Size(ar * 0.44f, ar * 0.7f))
+            }
+            "grape" -> {
+                repeat(5) { i -> drawCircle(foodColor, ar * 0.32f, Offset(fx + ((i % 3) - 1) * ar * 0.35f, fy + (i / 3) * ar * 0.35f)) }
+            }
+            "juice" -> {
+                drawRoundRect(foodColor, Offset(fx - ar * 0.35f, fy - ar * 0.55f), Size(ar * 0.7f, ar * 1.2f), androidx.compose.ui.geometry.CornerRadius(ar * 0.15f, ar * 0.15f))
+                drawRect(Color.White.copy(alpha = 0.35f), Offset(fx - ar * 0.2f, fy - ar * 0.2f), Size(ar * 0.15f, ar * 0.45f))
+            }
+            "citrus" -> {
+                drawCircle(foodColor, ar, Offset(fx, fy))
+                drawLine(Color.White.copy(alpha = 0.5f), Offset(fx - ar * 0.4f, fy), Offset(fx + ar * 0.4f, fy), 2f)
+                drawLine(Color.White.copy(alpha = 0.5f), Offset(fx, fy - ar * 0.4f), Offset(fx, fy + ar * 0.4f), 2f)
+            }
+            "burger" -> {
+                drawOval(Color(0xFFFFE082), Offset(fx - ar, fy - ar * 0.35f), Size(ar * 2f, ar * 0.45f))
+                drawOval(Color(0xFF6D4C41), Offset(fx - ar * 0.8f, fy - ar * 0.05f), Size(ar * 1.6f, ar * 0.35f))
+                drawOval(Color(0xFFFFE082), Offset(fx - ar, fy + ar * 0.15f), Size(ar * 2f, ar * 0.4f))
+            }
+            else -> drawCircle(Brush.radialGradient(listOf(foodColor.copy(alpha = 0.95f), foodColor, foodColor.copy(alpha = 0.7f)), Offset(fx - ar * 0.25f, fy - ar * 0.3f), ar * 1.2f), ar, Offset(fx, fy + ar * 0.05f))
+        }
+        if (showHitboxes) drawCircle(Color.Cyan.copy(alpha = 0.45f), ar, Offset(fx, fy), style = Stroke(width = 2f))
         drawCircle(Color.White.copy(alpha = 0.45f), ar * 0.22f, Offset(fx - ar * 0.28f, fy - ar * 0.22f))
         drawLine(Color(0xFF5D4037), Offset(fx, fy - ar * 0.85f), Offset(fx + ar * 0.12f, fy - ar * 1.25f), cell * 0.06f, cap = StrokeCap.Round)
         val leaf = Path().apply {
@@ -79,6 +109,8 @@ internal fun SmoothSnakeBoard(
             bodyPath.moveTo(points.last().x, points.last().y)
             for (i in points.lastIndex downTo 1) {
                 val a = points[i]; val b = points[i - 1]
+                val far = kotlin.math.abs(a.x - b.x) > cell * 1.6f || kotlin.math.abs(a.y - b.y) > cell * 1.6f
+                if (far) { bodyPath.moveTo(b.x, b.y); continue }
                 bodyPath.quadraticBezierTo(a.x, a.y, (a.x + b.x) / 2f, (a.y + b.y) / 2f)
             }
             bodyPath.lineTo(points[0].x, points[0].y)
@@ -106,6 +138,7 @@ internal fun SmoothSnakeBoard(
             drawLine(Color(0xFF1A1A1A), Offset(hp.x + headR * 0.15f, eyeY + eyeX * 0.85f), Offset(hp.x + headR * 0.55f, eyeY + eyeX * 0.35f), cell * 0.05f, cap = StrokeCap.Round)
         }
         if (points.size >= 2) drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
+        if (showHitboxes) points.forEach { drawCircle(Color.Yellow.copy(alpha = 0.35f), cell * 0.36f, it, style = Stroke(width = 2f)) }
     }
 }
 
