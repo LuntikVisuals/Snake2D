@@ -26,7 +26,8 @@ internal fun SmoothSnakeBoard(
     extraSnakes: List<Pair<List<RenderCell>, Color>> = emptyList(), showGrid: Boolean = false,
     showHitboxes: Boolean = false, foodShape: String = "apple",
     appearance: String = "gliist", gridColor: Long = 0x22FFFFFF, fieldBg: Long = 0xFF0B1420,
-    fieldPhoto: ImageBitmap? = null
+    fieldPhoto: ImageBitmap? = null,
+    extraFoods: List<Pair<RenderCell, Color>> = emptyList()
 ) {
     Canvas(Modifier.fillMaxSize()) {
         val cw = size.width / cols; val ch = size.height / rows; val cell = minOf(cw, ch)
@@ -42,6 +43,11 @@ internal fun SmoothSnakeBoard(
         for (o in obstacles) {
             drawRoundRect(Color(0xFF3A4555), Offset(o.x * cw + cw * 0.15f, o.y * ch + ch * 0.15f), Size(cw * 0.7f, ch * 0.7f),
                 androidx.compose.ui.geometry.CornerRadius(cell * 0.12f, cell * 0.12f))
+        }
+        extraFoods.forEach { (c, col) ->
+            val x = c.x * cw + cw / 2f; val y = c.y * ch + ch / 2f
+            drawCircle(col, cell * 0.28f, Offset(x, y))
+            drawCircle(Color.White.copy(alpha = 0.35f), cell * 0.1f, Offset(x - cell * 0.08f, y - cell * 0.08f))
         }
         val fx = food.x * cw + cw / 2f; val fy = food.y * ch + ch / 2f; val ar = cell * 0.32f
         drawCircle(foodColor.copy(alpha = 0.22f), ar * 1.55f, Offset(fx, fy))
@@ -127,14 +133,26 @@ internal fun SmoothSnakeBoard(
         }
         val maxStroke = cell * 0.72f; val minStroke = cell * 0.28f
         drawPath(bodyPath, Color.Black.copy(alpha = 0.35f), style = Stroke(width = maxStroke * 1.08f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(bodyPath, brush = Brush.linearGradient(listOf(bodyColor.copy(alpha = 0.85f), bodyColor, headColor.copy(alpha = 0.9f))), style = Stroke(width = maxStroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        val palette = when (appearance) {
+            "spongebob" -> Color(0xFFFFEB3B) to Color(0xFFF9A825)
+            "patrick" -> Color(0xFFF48FB1) to Color(0xFFEC407A)
+            "squidward" -> Color(0xFFC6B48A) to Color(0xFF8D6E63)
+            "gary" -> Color(0xFF81D4FA) to Color(0xFF29B6F6)
+            "krabs" -> Color(0xFFE53935) to Color(0xFFB71C1C)
+            "drawn" -> Color(0xFFFAFAFA) to Color(0xFF424242)
+            "plankton" -> Color(0xFF66BB6A) to Color(0xFF2E7D32)
+            else -> headColor to bodyColor
+        }
+        drawPath(bodyPath, brush = Brush.linearGradient(listOf(palette.second, palette.second, palette.first)), style = Stroke(width = maxStroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
         points.forEachIndexed { i, pt ->
             if (i == 0) return@forEachIndexed
             drawCircle(headColor.copy(alpha = 0.35f), cell * 0.08f, Offset(pt.x, pt.y - cell * 0.12f))
             drawCircle(Color.Black.copy(alpha = 0.25f), cell * 0.05f, Offset(pt.x + cell * 0.1f, pt.y + cell * 0.05f))
         }
         val hp = points[0]
+        val characterLook = appearance in setOf("spongebob", "patrick", "squidward", "gary", "krabs", "drawn", "plankton")
         val angleDeg = when (dir) { RenderDir.UP -> -90f; RenderDir.DOWN -> 90f; RenderDir.LEFT -> 180f; RenderDir.RIGHT -> 0f }
+        if (!characterLook) {
         val headR = cell * 0.42f
         rotate(angleDeg, hp) {
             drawOval(brush = Brush.radialGradient(listOf(headColor, bodyColor.copy(alpha = 0.95f)), Offset(hp.x - headR * 0.15f, hp.y - headR * 0.15f), headR * 1.2f),
@@ -147,8 +165,9 @@ internal fun SmoothSnakeBoard(
             drawLine(Color(0xFF1A1A1A), Offset(hp.x + headR * 0.15f, eyeY - eyeX * 0.85f), Offset(hp.x + headR * 0.55f, eyeY - eyeX * 0.35f), cell * 0.05f, cap = StrokeCap.Round)
             drawLine(Color(0xFF1A1A1A), Offset(hp.x + headR * 0.15f, eyeY + eyeX * 0.85f), Offset(hp.x + headR * 0.55f, eyeY + eyeX * 0.35f), cell * 0.05f, cap = StrokeCap.Round)
         }
-        if (points.size >= 2) drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
+        if (points.size >= 2) drawCircle(palette.second.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
         if (showHitboxes) points.forEach { drawCircle(Color.Yellow.copy(alpha = 0.35f), cell * 0.36f, it, style = Stroke(width = 2f)) }
+        }
         }
         val face = points.first()
         when (appearance) {
