@@ -94,7 +94,7 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
     var mode by remember { mutableStateOf(GameMode.CLASSIC) }
     var tick by remember { mutableIntStateOf(0) }
     fun refresh() { tick++ }
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A1320), C.bg, Color(0xFF090D16))))) {
+    Box(Modifier.fillMaxSize().background(Color(store.screenBg))) {
         when (scr) {
             Scr.REGISTER -> Register(store) { store.registered = true; store.saveBackup(); scr = Scr.HUB }
             Scr.HUB -> Hub(store, tick,
@@ -421,7 +421,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
         Text("МАГАЗИН", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
         Text("$coins монет · ${store.gems} гемов", color = C.gold, fontSize = 13.sp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Скины", "Яблоки", "Персонализация", "Донат").forEachIndexed { i, name ->
+            listOf("Скины", "Облики", "Яблоки", "Персонализация", "Донат").forEachIndexed { i, name ->
                 val sel = tab == i
                 Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (sel) C.mint.copy(alpha = 0.3f) else Color(0xFF1C2B3B))
                     .clickable { tab = i }.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -468,7 +468,8 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                     }
                 }
             }
-            1 -> {
+            1 -> AppearanceTab(store) { coins = store.coins; onChanged() }
+            2 -> {
                 ShopData.appleSkins.filter { it.id != "krab_burger" }.forEach { a ->
                     Glass(Modifier.fillMaxWidth()) {
                         Text(a.name, color = C.text, fontWeight = FontWeight.Bold)
@@ -484,7 +485,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                 }
                 Text("Крабсбургер — только сезон, смотри инвентарь.", color = C.muted, fontSize = 12.sp)
             }
-            2 -> PersonalizationTab(store) { coins = store.coins; onChanged() }
+            3 -> PersonalizationTab(store) { coins = store.coins; onChanged() }
             else -> {
                 Text("ДОНАТ", color = C.gold, fontWeight = FontWeight.Black)
                 Text("Гемы и монеты — донат. Premium пасса гемами не продаётся.", color = C.muted, fontSize = 12.sp)
@@ -680,19 +681,19 @@ private fun PersonalizationTab(store: ProgressStore, onChanged: () -> Unit) {
     }
     Text("Сетка — 5 цветов", color = C.text, fontWeight = FontWeight.Bold)
     grids.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(150, "Сетка $name")) { store.gridColor = col.toLong(); onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { store.gridColor = col.toLong(); store.saveBackup(); onChanged() }) {
             Text("$name · 150", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
     Text("Фон поля", color = C.text, fontWeight = FontWeight.Bold)
     fields.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Поле $name")) { store.fieldBg = col.toLong(); onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { store.fieldBg = col.toLong(); store.saveBackup(); onChanged() }) {
             Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
     Text("Фон экрана", color = C.text, fontWeight = FontWeight.Bold)
     screens.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Экран $name")) { store.screenBg = col.toLong(); onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { store.screenBg = col.toLong(); store.saveBackup(); onChanged() }) {
             Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
@@ -705,5 +706,32 @@ private fun PersonalizationTab(store: ProgressStore, onChanged: () -> Unit) {
                 } else pickField.launch("image/*")
                 onChanged()
             })
+    }
+}
+
+
+@Composable
+private fun AppearanceTab(store: ProgressStore, onChanged: () -> Unit) {
+    val looks = listOf(
+        "classic" to "Классика · гладкая",
+        "retro" to "Ретро · кубики",
+        "retro2" to "Ретро 2 · кружки",
+        "gliist" to "Глист · чешуя",
+        "spongebob" to "Спанч Боб · губка",
+        "patrick" to "Патрик · звезда",
+        "squidward" to "Сквидвард · нос",
+        "gary" to "Гэри · раковина",
+        "krabs" to "Мистер Крабс · клешни",
+        "drawn" to "Нарисованный Боб · карандаш",
+        "plankton" to "Планктон · глаз"
+    )
+    looks.forEach { (id, title) ->
+        val free = id in setOf("classic", "retro", "retro2", "gliist")
+        val owned = free || store.nickname.equals("adminka", true) || id in store.unlockedSkins()
+        Glass(Modifier.fillMaxWidth()) {
+            Text(title, color = C.text, fontWeight = FontWeight.Bold)
+            Text(if (store.selectedAppearance == id) "НАДЕТО" else if (owned) "НАДЕТЬ" else "сезон / админ", color = C.gold, fontSize = 12.sp,
+                modifier = Modifier.clickable { if (owned) { store.selectedAppearance = id; store.saveBackup(); onChanged() } })
+        }
     }
 }
