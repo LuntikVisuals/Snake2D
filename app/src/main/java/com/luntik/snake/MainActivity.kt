@@ -620,19 +620,19 @@ private fun PersonalizationTab(store: ProgressStore, onChanged: () -> Unit) {
     }
     Text("Сетка — 5 цветов", color = C.text, fontWeight = FontWeight.Bold)
     grids.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(150, "Сетка $name")) { store.gridColor = col; onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(150, "Сетка $name")) { store.gridColor = col.toLong(); onChanged() } }) {
             Text("$name · 150", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
     Text("Фон поля", color = C.text, fontWeight = FontWeight.Bold)
     fields.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Поле $name")) { store.fieldBg = col; onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Поле $name")) { store.fieldBg = col.toLong(); onChanged() } }) {
             Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
     Text("Фон экрана", color = C.text, fontWeight = FontWeight.Bold)
     screens.forEach { (name, col) ->
-        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Экран $name")) { store.screenBg = col; onChanged() } }) {
+        Glass(Modifier.fillMaxWidth().clickable { if (store.spendCoins(300, "Экран $name")) { store.screenBg = col.toLong(); onChanged() } }) {
             Text("$name · 300", color = Color(col), fontWeight = FontWeight.Bold)
         }
     }
