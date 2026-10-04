@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -48,6 +49,16 @@ internal fun CtrlBtn(label: String, size: Int, onClick: () -> Unit) {
         contentAlignment = Alignment.Center) { Text(label, color = C.text, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
 }
 
+internal fun Modifier.tapDir(enabled: Boolean, onDir: (Dir) -> Unit, current: Dir): Modifier = pointerInput(enabled, current) {
+    if (!enabled) return@pointerInput
+    detectTapGestures { offset ->
+        val cx = size.width / 2f; val cy = size.height / 2f
+        val dx = offset.x - cx; val dy = offset.y - cy
+        if (kotlin.math.abs(dx) > kotlin.math.abs(dy)) onDir(if (dx > 0) Dir.RIGHT else Dir.LEFT)
+        else onDir(if (dy > 0) Dir.DOWN else Dir.UP)
+    }
+}
+
 internal fun Modifier.swipeDir(enabled: Boolean, onDir: (Dir) -> Unit): Modifier = pointerInput(enabled) {
     if (!enabled) return@pointerInput
     var accX = 0f; var accY = 0f; var fired = false
@@ -67,12 +78,21 @@ internal fun Modifier.swipeDir(enabled: Boolean, onDir: (Dir) -> Unit): Modifier
 }
 
 @Composable
-internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit, rewardLine: String = "") {
+internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit, rewardLine: String = "", control: String = "buttons", onControl: (String) -> Unit = {}) {
     Box(Modifier.fillMaxSize().background(Color(0x99070D16)), contentAlignment = Alignment.Center) {
         Glass(Modifier.fillMaxWidth(0.85f)) {
             Text(if (phase == Phase.READY) "ГОТОВ?" else "КОНЕЦ", color = C.text, fontSize = 22.sp, fontWeight = FontWeight.Black)
-            Text(if (phase == Phase.READY) "Свайп или кнопки" else "Рекорд партии: $score", color = C.muted)
+            Text(if (phase == Phase.READY) "Выбери управление" else "Рекорд партии: $score", color = C.muted)
             if (phase == Phase.DEAD && rewardLine.isNotEmpty()) Text(rewardLine, color = C.gold, fontSize = 13.sp)
+            if (phase == Phase.DEAD) Text("XP и tix уже начислены", color = C.cyan, fontSize = 12.sp)
+            if (phase == Phase.READY) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("gestures" to "Жесты", "buttons" to "Кнопки").forEach { (id, title) ->
+                        Text(title, color = if (control == id) C.mint else C.text, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { onControl(id) }.padding(6.dp))
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable(onClick = onStart).padding(14.dp),
@@ -98,6 +118,7 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
     var rewarded by remember { mutableStateOf(false) }
     var paused by remember { mutableStateOf(false) }
     var rewardLine by remember { mutableStateOf("") }
+    var control by remember { mutableStateOf(store.controlMode) }
     val startMs = remember { System.currentTimeMillis() }
     fun spawn(body: List<Cell>): Cell {
         var c: Cell; do { c = Cell(Random.nextInt(cols), Random.nextInt(rows)) } while (c in body); return c
@@ -166,7 +187,8 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
             Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
-                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).swipeDir(phase == Phase.RUN) { turn(it) }) {
+                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                .then(if (control == "gestures") Modifier.tapDir(phase == Phase.RUN && !paused, { turn(it) }, dir) else Modifier.swipeDir(phase == Phase.RUN && !paused) { turn(it) })) {
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(skin.headColor), Color(skin.bodyColor), foodColor = Color(apple.color),
@@ -176,10 +198,11 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                         Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
                     }
                 }
-                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN }, rewardLine)
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN }, rewardLine, control) { control = it; store.controlMode = it }
             }
         }
-        Spacer(Modifier.height(10.dp)); ControlPad { turn(it) }; Spacer(Modifier.height(8.dp))
+        if (control != "gestures" && phase == Phase.RUN) { Spacer(Modifier.height(10.dp)); ControlPad { turn(it) } }
+        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -346,7 +369,8 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             val w = minOf(maxWidth, maxHeight * cols / rows)
             Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420))
-                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).swipeDir(phase == Phase.RUN) { turn(it) }) {
+                .border(1.dp, C.cyan.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                .then(if (control == "gestures") Modifier.tapDir(phase == Phase.RUN && !paused, { turn(it) }, dir) else Modifier.swipeDir(phase == Phase.RUN && !paused) { turn(it) })) {
                 val mainFood = foods.firstOrNull() ?: Cell(0, 0)
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
@@ -373,5 +397,83 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
         if (invulnLeft > 0) Text("Неуязвимость ${invulnLeft}с", color = C.cyan, fontSize = 12.sp)
         if (boostLeft > 0) Text("Ускорение ${boostLeft}с", color = C.mint, fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
+    }
+}
+
+
+@Composable
+internal fun KrustyPlay(store: ProgressStore, onExit: () -> Unit) {
+    val order = listOf("bun", "patty", "cheese")
+    val names = mapOf("bun" to "Булочка", "patty" to "Котлета", "cheese" to "Сыр")
+    val colors = mapOf("bun" to 0xFFFFE082, "patty" to 0xFF8D6E63, "cheese" to 0xFFFFD54F)
+    var step by remember { mutableIntStateOf(0) }
+    var phase by remember { mutableStateOf(Phase.READY) }
+    var score by remember { mutableIntStateOf(0) }
+    var dir by remember { mutableStateOf(Dir.RIGHT) }
+    var next by remember { mutableStateOf(Dir.RIGHT) }
+    var snake by remember { mutableStateOf(listOf(Cell(4, 10), Cell(3, 10), Cell(2, 10))) }
+    var food by remember { mutableStateOf(Cell(10, 8)) }
+    var foodKind by remember { mutableStateOf("bun") }
+    var progress by remember { mutableFloatStateOf(1f) }
+    var msg by remember { mutableStateOf("Сначала булочка") }
+    var rewarded by remember { mutableStateOf(false) }
+    val cols = COLS; val rows = ROWS
+    fun spawn(body: List<Cell>): Cell {
+        var c: Cell; do { c = Cell(kotlin.random.Random.nextInt(cols), kotlin.random.Random.nextInt(rows)) } while (c in body); return c
+    }
+    fun turn(d: Dir) {
+        val opp = when (dir) { Dir.UP -> Dir.DOWN; Dir.DOWN -> Dir.UP; Dir.LEFT -> Dir.RIGHT; Dir.RIGHT -> Dir.LEFT }
+        if (d != opp) next = d
+    }
+    fun finish(ok: Boolean) {
+        if (phase == Phase.DEAD) return
+        phase = Phase.DEAD; progress = 1f
+        if (!rewarded) {
+            rewarded = true
+            store.grantMatchRewards(score, GameMode.KRUSTY)
+            store.pushScore(store.nickname, score, GameMode.KRUSTY.name)
+            store.saveBackup()
+        }
+        msg = if (ok) "Собрал бургер" else "Не тот слой — проигрыш"
+    }
+    LaunchedEffect(phase) {
+        while (phase == Phase.RUN) {
+            dir = next
+            val h = snake.first(); var nx = h.x; var ny = h.y
+            when (dir) { Dir.UP -> ny--; Dir.DOWN -> ny++; Dir.LEFT -> nx--; Dir.RIGHT -> nx++ }
+            val nh = Cell(nx, ny)
+            val eat = nh == food
+            val body = if (eat) snake else snake.dropLast(1)
+            if (nx !in 0 until cols || ny !in 0 until rows || nh in body) { progress = 1f; finish(false); break }
+            progress = 0f
+            snake = listOf(nh) + body
+            smoothStep(GameMode.KRUSTY.speedMs, store.targetFps) { progress = it }
+            progress = 1f
+            if (eat) {
+                val need = order[step % order.size]
+                if (foodKind != need) { finish(false); break }
+                score += ProgressStore.POINTS_PER_APPLE
+                step++
+                msg = "Дальше: ${names[order[step % order.size]]}"
+                foodKind = listOf("bun", "patty", "cheese").random()
+                food = spawn(snake)
+            }
+        }
+    }
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = onExit) { Text("‹ МЕНЮ", color = C.text) }
+            Text("Красти · $score · $msg", color = C.gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            val w = minOf(maxWidth, maxHeight * cols / rows)
+            Box(Modifier.width(w).aspectRatio(cols / rows.toFloat()).clip(RoundedCornerShape(16.dp)).background(Color(0xFF0B1420)).swipeDir(phase == Phase.RUN) { turn(it) }) {
+                SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
+                    RenderDir.RIGHT, Color(0xFFFFCC80), Color(0xFFD84315), foodColor = Color(colors[foodKind] ?: 0xFFFFE082),
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid)
+                if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) { step = 0; score = 0; rewarded = false; snake = listOf(Cell(4,10),Cell(3,10),Cell(2,10)); foodKind = "bun"; msg = "Сначала булочка" }; phase = Phase.RUN }, msg)
+            }
+        }
+        ControlPad { turn(it) }
     }
 }
