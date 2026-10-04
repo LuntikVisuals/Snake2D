@@ -23,6 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import kotlin.random.Random
 
 internal suspend fun smoothStep(stepMs: Long, targetFps: Int = 120, onProgress: (Float) -> Unit) {
@@ -223,6 +227,12 @@ internal data class EnemySnake(
 
 @Composable
 internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
+    val ctx = LocalContext.current
+    val fieldPhoto = remember(store.fieldPhotoUri) {
+        if (store.fieldPhotoUri.isBlank()) null else try {
+            ctx.contentResolver.openInputStream(Uri.parse(store.fieldPhotoUri))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+        } catch (_: Exception) { null }
+    }
     val ch = CharacterData.byId(store.selectedCharacter)
     val cols = FEED_COLS; val rows = FEED_ROWS
     var phase by remember { mutableStateOf(Phase.READY) }
