@@ -38,7 +38,7 @@ const val APP_TITLE = "Snake2D 2.1.1.2"
 
 internal enum class Dir { UP, DOWN, LEFT, RIGHT }
 internal enum class Phase { READY, RUN, DEAD }
-internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED, SETTINGS, REGISTER, BATTLEPASS, INVENTORY }
+internal enum class Scr { HUB, PLAY, SHOP, CASES, CHARS, FEED, SETTINGS, REGISTER, BATTLEPASS, INVENTORY, PROFILE, LEADER }
 internal data class Cell(val x: Int, val y: Int)
 
 internal object C {
@@ -94,7 +94,8 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
                 onPlay = { mode = it; if (it == GameMode.FEEDING) scr = Scr.CHARS else scr = Scr.PLAY },
                 onShop = { scr = Scr.SHOP }, onCases = { scr = Scr.CASES }, onChars = { scr = Scr.CHARS },
                 onSettings = { scr = Scr.SETTINGS }, onBattlePass = { scr = Scr.BATTLEPASS },
-                onInventory = { scr = Scr.INVENTORY }, onRefresh = { refresh() })
+                onInventory = { scr = Scr.INVENTORY }, onProfile = { scr = Scr.PROFILE },
+                onLeader = { scr = Scr.LEADER }, onRefresh = { refresh() })
             Scr.PLAY -> ClassicPlay(store, mode) { refresh(); store.saveBackup(); scr = Scr.HUB }
             Scr.SHOP -> key(tick) { Shop(store, { refresh() }) { scr = Scr.HUB } }
             Scr.CASES -> key(tick) { Cases(store, { refresh() }) { scr = Scr.HUB } }
@@ -103,6 +104,8 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
             Scr.SETTINGS -> Settings(store, onFps) { refresh(); scr = Scr.HUB }
             Scr.BATTLEPASS -> BattlePassScreen(store, onDonate = { scr = Scr.SHOP }) { refresh(); scr = Scr.HUB }
             Scr.INVENTORY -> InventoryScreen(store, { refresh() }) { scr = Scr.HUB }
+            Scr.PROFILE -> ProfileScreen(store) { scr = Scr.HUB }
+            Scr.LEADER -> LeaderScreen(store) { scr = Scr.HUB }
         }
     }
 }
@@ -141,7 +144,7 @@ private fun Register(store: ProgressStore, onDone: () -> Unit) {
 }
 
 @Composable
-private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onSettings: () -> Unit, onBattlePass: () -> Unit, onInventory: () -> Unit, onRefresh: () -> Unit) {
+private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onShop: () -> Unit, onCases: () -> Unit, onChars: () -> Unit, onSettings: () -> Unit, onBattlePass: () -> Unit, onInventory: () -> Unit, onProfile: () -> Unit, onLeader: () -> Unit, onRefresh: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val t = tick
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -152,7 +155,7 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onS
             Text("⚙", color = C.text, fontSize = 26.sp, modifier = Modifier.clickable(onClick = onSettings))
         }
         Glass(Modifier.fillMaxWidth()) {
-            Text(store.nickname, color = C.text, fontWeight = FontWeight.Bold)
+            Text(store.nickname, color = C.text, fontWeight = FontWeight.Bold, modifier = Modifier.clickable(onClick = onProfile))
             Text("${store.coins} монет · ${store.gems} гемов · ${store.tix} tix", color = C.gold, fontSize = 13.sp)
             Text("BP ${store.bpLevel}/40 · ${store.xp} XP", color = C.muted, fontSize = 12.sp)
         }
@@ -174,6 +177,10 @@ private fun Hub(store: ProgressStore, tick: Int, onPlay: (GameMode) -> Unit, onS
                 Text("ИНВЕНТАРЬ", color = C.text, fontWeight = FontWeight.Bold)
                 Text("скрытые / коллаба", color = C.muted, fontSize = 11.sp)
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Glass(Modifier.weight(1f).clickable(onClick = onProfile)) { Text("ПРОФИЛЬ", color = C.text, fontWeight = FontWeight.Bold) }
+            Glass(Modifier.weight(1f).clickable(onClick = onLeader)) { Text("ТОПЫ", color = C.text, fontWeight = FontWeight.Bold) }
         }
         Glass(Modifier.fillMaxWidth().clickable(onClick = onChars)) {
             Text("ПЕРСОНАЖИ · ПОЕДАНИЕ", color = C.text, fontWeight = FontWeight.Bold)
@@ -264,6 +271,17 @@ private fun InventoryScreen(store: ProgressStore, onChanged: () -> Unit, onBack:
                     Text(if (store.selectedCharacter == ch.id) "ВЫБРАН" else "НАДЕТЬ", color = C.cyan, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable { store.selectedCharacter = ch.id; store.saveBackup(); onChanged() })
                 }
+            }
+        }
+        Text("ЕДА", color = C.gold, fontWeight = FontWeight.Bold)
+        ShopData.appleSkins.forEach { a ->
+            val have = a.id == "apple" || a.id in store.unlockedApples() || (a.id != "krab_burger" && a.price == 0)
+            val seasonal = a.id == "krab_burger"
+            Glass(Modifier.fillMaxWidth()) {
+                Text(a.name + if (seasonal) " · эксклюзив сезона" else "", color = if (have || !seasonal) C.text else C.muted, fontWeight = FontWeight.Bold)
+                if (seasonal && !have) Text("Только сезон / инвентарь, в магазине нет", color = C.red, fontSize = 12.sp)
+                if (have || !seasonal) Text(if (store.selectedApple == a.id) "НАДЕТО" else "НАДЕТЬ", color = C.cyan, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { store.selectedApple = a.id; store.saveBackup(); onChanged() })
             }
         }
         Text("ОБЛИКИ КОЛЛАБЫ", color = C.gold, fontWeight = FontWeight.Bold)
@@ -389,9 +407,11 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
                 ShopData.appleSkins.filter { it.id != "krab_burger" }.forEach { a ->
                     Glass(Modifier.fillMaxWidth()) {
                         Text(a.name, color = C.text, fontWeight = FontWeight.Bold)
-                        Text(if (store.selectedApple == a.id) "НАДЕТО" else "${a.price} монет", color = C.gold, fontSize = 12.sp,
+                        val owned = a.price == 0 || a.id in store.unlockedApples() || store.selectedApple == a.id
+                        Text(if (store.selectedApple == a.id) "НАДЕТО" else if (owned) "НАДЕТЬ" else "${a.price} монет", color = C.gold, fontSize = 12.sp,
                             modifier = Modifier.clickable {
-                                if (a.price == 0 || store.spendCoins(a.price, "Яблоко ${a.name}")) {
+                                if (owned || store.spendCoins(a.price, "Яблоко ${a.name}")) {
+                                    store.unlockApple(a.id)
                                     store.selectedApple = a.id; store.saveBackup(); onChanged()
                                 }
                             })
@@ -483,6 +503,50 @@ private fun Chars(store: ProgressStore, onChanged: () -> Unit, onPlay: () -> Uni
         }
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable(onClick = onPlay).padding(14.dp), contentAlignment = Alignment.Center) {
             Text("ИГРАТЬ В ПОЕДАНИЕ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+
+@Composable
+private fun ProfileScreen(store: ProgressStore, onBack: () -> Unit) {
+    val st = store.getStats()
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
+        Text("ПРОФИЛЬ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Glass(Modifier.fillMaxWidth()) {
+            Text(store.nickname, color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text("Уровень ${store.level} · ${store.xp} XP", color = C.cyan)
+            Text("Батлпасс ур.${store.bpLevel} · ${BattlePassData.SEASON_NAME}", color = C.gold)
+            Text("Сезон: ${BattlePassData.SEASON_ID}", color = C.muted, fontSize = 12.sp)
+            Text("${store.coins} монет · ${store.gems} гемов · ${store.tix} tix", color = C.muted, fontSize = 13.sp)
+        }
+        Glass(Modifier.fillMaxWidth()) {
+            Text("Статы", color = C.text, fontWeight = FontWeight.Bold)
+            Text("Каток: ${st.gamesPlayed} · еды: ${st.totalFoodEaten} · макс длина ${st.maxLength}", color = C.muted, fontSize = 12.sp)
+            Text("Кейсов: ${st.casesOpened}", color = C.muted, fontSize = 12.sp)
+            Text("Скин: ${ShopData.skin(store.selectedSkin).name}", color = C.muted, fontSize = 12.sp)
+            Text("Еда: ${ShopData.apple(store.selectedApple).name}", color = C.muted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun LeaderScreen(store: ProgressStore, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
+        Text("ТОПЫ", color = C.mint, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Text("По режимам, локально на этом устройстве", color = C.muted, fontSize = 12.sp)
+        GameMode.entries.forEach { m ->
+            val board = store.leaderboard(m.name)
+            Glass(Modifier.fillMaxWidth()) {
+                Text(m.title, color = C.text, fontWeight = FontWeight.Bold)
+                Text("Твой рекорд: ${store.bestScore(m.name)}", color = C.gold, fontSize = 12.sp)
+                if (board.isEmpty()) Text("Пока пусто", color = C.muted, fontSize = 12.sp)
+                board.take(8).forEachIndexed { i, e ->
+                    Text("${i + 1}. ${e.name} — ${e.score}", color = C.muted, fontSize = 12.sp)
+                }
+            }
         }
     }
 }
