@@ -160,6 +160,10 @@ class ProgressStore(ctx: Context) {
         (p.getStringSet("appearances", setOf("classic", "viper")) ?: setOf("classic", "viper")) + "classic"
     fun unlockedApples(): Set<String> =
         (p.getStringSet("apples", setOf("apple")) ?: setOf("apple")) + "apple"
+    fun unlockApple(id: String) {
+        val s = unlockedApples().toMutableSet(); s.add(id)
+        p.edit().putStringSet("apples", s).apply(); saveBackup()
+    }
     fun unlockedCharacters(): Set<String> =
         (p.getStringSet("chars", setOf("basic")) ?: setOf("basic")) + "basic"
     fun unlockCharacter(id: String) {
