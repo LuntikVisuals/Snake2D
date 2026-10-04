@@ -101,6 +101,28 @@ class ProgressStore(ctx: Context) {
     var selectedApple: String
         get() = p.getString("appleSkin", "apple") ?: "apple"
         set(v) { p.edit().putString("appleSkin", v).apply(); saveBackup() }
+
+    var avatarUri: String
+        get() = p.getString("avatarUri", "") ?: ""
+        set(v) { p.edit().putString("avatarUri", v).apply(); saveBackup() }
+    var bannerUri: String
+        get() = p.getString("bannerUri", "") ?: ""
+        set(v) { p.edit().putString("bannerUri", v).apply(); saveBackup() }
+    var gridColor: Long
+        get() = p.getLong("gridColor", 0x12FFFFFF)
+        set(v) { p.edit().putLong("gridColor", v).apply(); saveBackup() }
+    var fieldBg: Long
+        get() = p.getLong("fieldBg", 0xFF0B1420)
+        set(v) { p.edit().putLong("fieldBg", v).apply(); saveBackup() }
+    var screenBg: Long
+        get() = p.getLong("screenBg", 0xFF070B12)
+        set(v) { p.edit().putLong("screenBg", v).apply(); saveBackup() }
+    var customFieldSlot: Boolean
+        get() = p.getBoolean("customField", false)
+        set(v) { p.edit().putBoolean("customField", v).apply(); saveBackup() }
+    var fieldPhotoUri: String
+        get() = p.getString("fieldPhoto", "") ?: ""
+        set(v) { p.edit().putString("fieldPhoto", v).apply(); saveBackup() }
     var showGrid: Boolean
         get() = p.getBoolean("showGrid", false)
         set(v) { p.edit().putBoolean("showGrid", v).apply(); saveBackup() }
