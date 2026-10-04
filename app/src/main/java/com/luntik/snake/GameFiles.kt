@@ -66,9 +66,19 @@ object GameFiles {
                 int.isFile && int.length() > 2 -> int.readText()
                 else -> null
             }
-        } catch (_: Exception) {
-            null
-        }
+        } catch (_: Exception) { null }
+    }
+
+    fun writeProfileCard(context: Context, nick: String, level: Int, xp: Int, bpLevel: Int, seasonId: String) {
+        try {
+            ensureLayout(context)
+            val o = JSONObject()
+                .put("nick", nick).put("level", level).put("xp", xp)
+                .put("bpLevel", bpLevel).put("season", seasonId)
+                .put("updated", System.currentTimeMillis())
+            File(externalRoot(context), "profile.json").writeText(o.toString())
+            File(root(context), "profile.json").writeText(o.toString())
+        } catch (_: Exception) { }
     }
 
     fun writeSessionLog(context: Context, line: String) {
@@ -83,10 +93,6 @@ object GameFiles {
     fun readCompanionManifest(context: Context): JSONObject? {
         val f = File(companionDir(context), "manifest.json")
         if (!f.isFile) return null
-        return try {
-            JSONObject(f.readText())
-        } catch (_: Exception) {
-            null
-        }
+        return try { JSONObject(f.readText()) } catch (_: Exception) { null }
     }
 }
