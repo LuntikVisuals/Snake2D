@@ -94,7 +94,7 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
     var mode by remember { mutableStateOf(GameMode.CLASSIC) }
     var tick by remember { mutableIntStateOf(0) }
     fun refresh() { tick++ }
-    Box(Modifier.fillMaxSize().background(Color(store.screenBg))) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF0A1320), C.bg, Color(0xFF090D16))))) {
         when (scr) {
             Scr.REGISTER -> Register(store) { store.registered = true; store.saveBackup(); scr = Scr.HUB }
             Scr.HUB -> Hub(store, tick,
