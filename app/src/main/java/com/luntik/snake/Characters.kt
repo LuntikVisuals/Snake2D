@@ -4,7 +4,8 @@ enum class CharRarity(val title: String, val color: Long) {
     COMMON("Обычная", 0xFF9E9E9E),
     RARE("Редкая", 0xFF42A5F5),
     LEGENDARY("Легендарная", 0xFFFFA726),
-    MYTHIC("Мифическая", 0xFFE040FB)
+    MYTHIC("Мифическая", 0xFFE040FB),
+    EXCLUSIVE("Эксклюзивная", 0xFFFFD700)
 }
 
 data class AbilityEffect(val id: String, val title: String, val durationSec: Float, val onSelf: Boolean, val description: String)
@@ -12,7 +13,8 @@ data class CharacterAbility(val id: String, val name: String, val cooldownSec: I
 data class SnakeCharacter(
     val id: String, val name: String, val rarity: CharRarity,
     val headColor: Long, val bodyColor: Long, val description: String,
-    val ability: CharacterAbility?, val unlockPrice: Int = 0, val unlockOnlyCase: Boolean = false
+    val ability: CharacterAbility?, val unlockPrice: Int = 0,
+    val unlockOnlyCase: Boolean = false, val seasonOnly: Boolean = false
 )
 
 object CharacterData {
@@ -37,7 +39,10 @@ object CharacterData {
             )), 1200),
         SnakeCharacter("shadow", "Тень", CharRarity.MYTHIC, 0xFFCE93D8, 0xFF4A148C,
             "Краткий фаз: проходит сквозь тела врагов.",
-            CharacterAbility("phase", "Фаза", 22, listOf(AbilityEffect("invuln_100", "Фаза", 3f, true, "Проход сквозь врагов 3 сек"))), 1100)
+            CharacterAbility("phase", "Фаза", 22, listOf(AbilityEffect("invuln_100", "Фаза", 3f, true, "Проход сквозь врагов 3 сек"))), 1100),
+        SnakeCharacter("spongebob_char", "Спанч Боб", CharRarity.EXCLUSIVE, 0xFFFFF59D, 0xFFFDD835,
+            "Эксклюзив сезона Бикини Боттом. Только 1 сезон.",
+            CharacterAbility("sponge", "Губка", 15, listOf(AbilityEffect("invuln_100", "Впитывание", 4f, true, "Неуязвимость 4 сек"))), 0, seasonOnly = true)
     )
     fun byId(id: String) = all.find { it.id == id } ?: all.first()
 }
