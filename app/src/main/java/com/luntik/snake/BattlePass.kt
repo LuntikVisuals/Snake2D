@@ -33,10 +33,10 @@ object BattlePassData {
         val free = when (lv) {
             1 -> BpReward(BpRewardType.COINS, 50, title = "50 монет")
             5 -> BpReward(BpRewardType.GEMS, 5, title = "5 гемов")
-            10 -> BpReward(BpRewardType.XP_CRATE, title = "XP-ящик")
+            10 -> BpReward(BpRewardType.COINS, 150, title = "Сезонный ящик")
             15 -> BpReward(BpRewardType.COINS, 100, title = "100 монет")
             20 -> BpReward(BpRewardType.GEMS, 10, title = "10 гемов")
-            25 -> BpReward(BpRewardType.XP_CRATE, title = "XP-ящик")
+            25 -> BpReward(BpRewardType.GEMS, 20, title = "Легендарный ящик")
             30 -> BpReward(BpRewardType.COINS, 200, title = "200 монет")
             35 -> BpReward(BpRewardType.GEMS, 15, title = "15 гемов")
             40 -> BpReward(BpRewardType.APPEARANCE, itemId = "viper", title = "Облик Гадюка")
