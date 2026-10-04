@@ -161,7 +161,7 @@ internal fun SmoothSnakeBoard(
                 drawCircle(Color.White, cell * 0.1f, Offset(face.x + cell * 0.14f, face.y - cell * 0.08f))
                 drawCircle(Color(0xFF1565C0), cell * 0.05f, Offset(face.x - cell * 0.1f, face.y - cell * 0.08f))
                 drawCircle(Color(0xFF1565C0), cell * 0.05f, Offset(face.x + cell * 0.16f, face.y - cell * 0.08f))
-                drawArc(Color(0xFF5D4037), cell * 0.16f, cell * 0.1f, 20f, 140f, false, Offset(face.x - cell * 0.16f, face.y + cell * 0.05f), Size(cell * 0.36f, cell * 0.22f), style = Stroke(width = 3f))
+                drawArc(Color(0xFF5D4037), 20f, 140f, false, Offset(face.x - cell * 0.16f, face.y + cell * 0.05f), Size(cell * 0.36f, cell * 0.22f), style = Stroke(width = 3f))
             }
             "patrick" -> {
                 val star = Path().apply {
@@ -211,7 +211,7 @@ internal fun SmoothSnakeBoard(
                 drawCircle(Color(0xFF1B5E20), cell * 0.06f, Offset(face.x + cell * 0.02f, face.y - cell * 0.05f))
                 drawLine(Color(0xFF1B5E20), Offset(face.x - cell * 0.06f, face.y - cell * 0.32f), Offset(face.x - cell * 0.1f, face.y - cell * 0.48f), 3f)
                 drawLine(Color(0xFF1B5E20), Offset(face.x + cell * 0.06f, face.y - cell * 0.32f), Offset(face.x + cell * 0.1f, face.y - cell * 0.48f), 3f)
-                drawArc(Color(0xFF1B5E20), cell * 0.08f, cell * 0.05f, 10f, 160f, false, Offset(face.x - cell * 0.08f, face.y + cell * 0.08f), Size(cell * 0.18f, cell * 0.1f), style = Stroke(width = 2f))
+                drawArc(Color(0xFF1B5E20), 10f, 160f, false, Offset(face.x - cell * 0.08f, face.y + cell * 0.08f), Size(cell * 0.18f, cell * 0.1f), style = Stroke(width = 2f))
             }
         }
         points.forEachIndexed { i, pt ->
@@ -228,7 +228,7 @@ internal fun SmoothSnakeBoard(
                 }
                 "spongebob" -> drawCircle(Color(0xFFFFF59D).copy(alpha = 0.35f), cell * 0.22f, pt)
                 "drawn" -> drawLine(Color.Black.copy(alpha = 0.65f), Offset(pt.x - cell * 0.2f, pt.y), Offset(pt.x + cell * 0.18f, pt.y - cell * 0.12f), 2f)
-                "plankton" -> drawArc(Color.White, cell * 0.05f, cell * 0.04f, 200f, 140f, false, Offset(pt.x - cell * 0.05f, pt.y - cell * 0.4f), Size(cell * 0.12f, cell * 0.08f), style = Stroke(width = 2f))
+                "plankton" -> drawArc(Color.White, 200f, 140f, false, Offset(pt.x - cell * 0.05f, pt.y - cell * 0.4f), Size(cell * 0.12f, cell * 0.08f), style = Stroke(width = 2f))
             }
         }
     }
