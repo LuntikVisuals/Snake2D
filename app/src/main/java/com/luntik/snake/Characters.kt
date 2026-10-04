@@ -40,9 +40,11 @@ object CharacterData {
         SnakeCharacter("shadow", "Тень", CharRarity.MYTHIC, 0xFFCE93D8, 0xFF4A148C,
             "Краткий фаз: проходит сквозь тела врагов.",
             CharacterAbility("phase", "Фаза", 22, listOf(AbilityEffect("invuln_100", "Фаза", 3f, true, "Проход сквозь врагов 3 сек"))), 1100),
+        // Только баттлпасс сезон 1 — не в свободной продаже
         SnakeCharacter("spongebob_char", "Спанч Боб", CharRarity.EXCLUSIVE, 0xFFFFF59D, 0xFFFDD835,
-            "Эксклюзив сезона Бикини Боттом. Только 1 сезон.",
+            "Только баттлпасс «Бикини Боттом», ур.20 premium.",
             CharacterAbility("sponge", "Губка", 15, listOf(AbilityEffect("invuln_100", "Впитывание", 4f, true, "Неуязвимость 4 сек"))), 0, seasonOnly = true)
     )
     fun byId(id: String) = all.find { it.id == id } ?: all.first()
+    fun visibleForSelect(unlocked: Set<String>) = all.filter { !it.seasonOnly || it.id in unlocked }
 }
