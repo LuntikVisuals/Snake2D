@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
@@ -676,8 +677,15 @@ private fun PersonalizationTab(store: ProgressStore, onChanged: () -> Unit) {
     )
     val fields = listOf("Ночь" to 0xFF0B1420, "Бездна" to 0xFF061018, "Песок" to 0xFF1A140C, "Лагуна" to 0xFF0C1C22)
     val screens = listOf("Стандарт" to 0xFF070B12, "Изумруд" to 0xFF07140F, "Фиолет" to 0xFF120818, "Закат" to 0xFF1A0C10)
+    val ctx = LocalContext.current
     val pickField = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null && store.customFieldSlot) store.fieldPhotoUri = uri.toString()
+        if (uri == null || !store.customFieldSlot) return@rememberLauncherForActivityResult
+        val dir = ctx.getExternalFilesDir(null)?.resolve("snake2d") ?: return@rememberLauncherForActivityResult
+        dir.mkdirs()
+        val out = dir.resolve("field.jpg")
+        ctx.contentResolver.openInputStream(uri)?.use { input -> out.outputStream().use { input.copyTo(it) } }
+        store.fieldPhotoUri = out.absolutePath
+        store.saveBackup()
     }
     Text("Сетка — 5 цветов", color = C.text, fontWeight = FontWeight.Bold)
     grids.forEach { (name, col) ->
