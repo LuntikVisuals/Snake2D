@@ -451,6 +451,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
 private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
     var spinning by remember { mutableStateOf(false) }
+    var openingId by remember { mutableStateOf("") }
     var reel by remember { mutableStateOf("") }
     var coins by remember { mutableIntStateOf(store.coins) }
     LaunchedEffect(spinning) {
@@ -477,12 +478,13 @@ private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Uni
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable {
                     if (spinning) return@clickable
                     if (!store.spendCoins(c.price, "Кейс ${c.name}")) { msg = "Мало монет"; return@clickable }
+                    openingId = c.id
                     spinning = true
                     coins = store.coins
                 }.padding(12.dp), contentAlignment = Alignment.Center) {
-                    Text(if (spinning) "КРУТИМ" else "ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                    Text(if (spinning && openingId == c.id) "КРУТИМ" else "ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
                 }
-                if (spinning) {
+                if (spinning && openingId == c.id) {
                     LaunchedEffect(c.id) {
                         delay(1600)
                         val drop = ShopData.openCase(c)
