@@ -96,7 +96,7 @@ private fun App(store: ProgressStore, onFps: (Int) -> Unit) {
                 onSettings = { scr = Scr.SETTINGS }, onBattlePass = { scr = Scr.BATTLEPASS },
                 onInventory = { scr = Scr.INVENTORY }, onProfile = { scr = Scr.PROFILE },
                 onLeader = { scr = Scr.LEADER }, onRefresh = { refresh() })
-            Scr.PLAY -> ClassicPlay(store, mode) { refresh(); store.saveBackup(); scr = Scr.HUB }
+            Scr.PLAY -> if (mode == GameMode.KRUSTY) KrustyPlay(store) { refresh(); store.saveBackup(); scr = Scr.HUB } else ClassicPlay(store, mode) { refresh(); store.saveBackup(); scr = Scr.HUB }
             Scr.SHOP -> key(tick) { Shop(store, { refresh() }) { scr = Scr.HUB } }
             Scr.CASES -> key(tick) { Cases(store, { refresh() }) { scr = Scr.HUB } }
             Scr.CHARS -> key(tick) { Chars(store, { refresh() }, onPlay = { scr = Scr.FEED }, onBack = { scr = Scr.HUB }) }
@@ -443,6 +443,7 @@ private fun Shop(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit
 @Composable
 private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Unit) {
     var msg by remember { mutableStateOf("") }
+    var spinning by remember { mutableStateOf(false) }
     var coins by remember { mutableIntStateOf(store.coins) }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(18.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("‹ НАЗАД", color = C.text) }
@@ -458,14 +459,19 @@ private fun Cases(store: ProgressStore, onChanged: () -> Unit, onBack: () -> Uni
                 }
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brush.horizontalGradient(listOf(C.mint, C.cyan))).clickable {
+                    if (spinning) return@clickable
                     if (!store.spendCoins(c.price, "Кейс ${c.name}")) { msg = "Мало монет"; return@clickable }
+                    spinning = true
+                    msg = "Крутим ${c.name}..."
                     val drop = ShopData.openCase(c)
                     val dup = store.isUnlocked(drop.id)
-                    if (dup) { store.addCoins(20, "Дубликат ${drop.name}"); msg = "Дубликат ${drop.name} (+20)" }
-                    else { store.unlockSkin(drop.id); msg = "Выпало: ${drop.name} [${drop.rarity.title}]" }
-                    store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup(); coins = store.coins; onChanged()
+                    if (dup) store.addCoins(20, "Дубликат ${drop.name}") else store.unlockSkin(drop.id)
+                    store.recordCaseOpened(); store.logCase(c.name, drop.name, dup); store.saveBackup(); coins = store.coins
+                    msg = if (dup) "ВЫПАЛО: дубликат ${drop.name} (+20)" else "ВЫПАЛО: ${drop.name} [${drop.rarity.title}]"
+                    spinning = false
+                    onChanged()
                 }.padding(12.dp), contentAlignment = Alignment.Center) {
-                    Text("ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
+                    Text(if (spinning) "..." else "ОТКРЫТЬ", color = Color(0xFF062016), fontWeight = FontWeight.Black)
                 }
             }
         }
