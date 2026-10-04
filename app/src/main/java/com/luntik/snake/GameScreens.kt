@@ -111,6 +111,12 @@ internal fun OverlayReadyDead(phase: Phase, score: Int, onStart: () -> Unit, rew
 internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Unit) {
     val skin = ShopData.skin(store.selectedSkin)
     val apple = ShopData.apple(store.selectedApple)
+    val ctx = LocalContext.current
+    val fieldPhoto = remember(store.fieldPhotoUri) {
+        if (store.fieldPhotoUri.isBlank()) null else try {
+            ctx.contentResolver.openInputStream(Uri.parse(store.fieldPhotoUri))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+        } catch (_: Exception) { null }
+    }
     val cols = COLS; val rows = ROWS
     var phase by remember { mutableStateOf(Phase.READY) }
     var score by remember { mutableIntStateOf(0) }
@@ -196,7 +202,7 @@ internal fun ClassicPlay(store: ProgressStore, mode: GameMode, onExit: () -> Uni
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(food.x, food.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(skin.headColor), Color(skin.bodyColor), foodColor = Color(apple.color), foodShape = apple.shape,
-                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg)
+                    progress = if (phase == Phase.DEAD) 1f else progress, showGrid = store.showGrid, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg, fieldPhoto = fieldPhoto, fieldPhoto = fieldPhoto)
                 if (paused && phase == Phase.RUN) {
                     Box(Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
                         Text("ПАУЗА", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Black)
@@ -379,7 +385,7 @@ internal fun FeedingPlay(store: ProgressStore, onExit: () -> Unit) {
                 SmoothSnakeBoard(cols, rows, snake.map { RenderCell(it.x, it.y) }, RenderCell(mainFood.x, mainFood.y),
                     when (dir) { Dir.UP -> RenderDir.UP; Dir.DOWN -> RenderDir.DOWN; Dir.LEFT -> RenderDir.LEFT; Dir.RIGHT -> RenderDir.RIGHT },
                     Color(ch.headColor), Color(ch.bodyColor), foodColor = Color(ShopData.apple(store.selectedApple).color), foodShape = ShopData.apple(store.selectedApple).shape,
-                    progress = if (phase == Phase.DEAD) 1f else progress, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg,
+                    progress = if (phase == Phase.DEAD) 1f else progress, showHitboxes = store.showHitboxes, appearance = store.selectedAppearance, gridColor = store.gridColor, fieldBg = store.fieldBg, fieldPhoto = fieldPhoto,
                     extraSnakes = enemies.map { e -> e.body.map { RenderCell(it.x, it.y) } to e.color }, showGrid = store.showGrid)
                 if (foods.size > 1) Text("x${foods.size} яблок", color = C.gold, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 if (phase != Phase.RUN) OverlayReadyDead(phase, score, { if (phase == Phase.DEAD) reset(); phase = Phase.RUN })
