@@ -86,6 +86,11 @@ internal fun SmoothSnakeBoard(
         val maxStroke = cell * 0.72f; val minStroke = cell * 0.28f
         drawPath(bodyPath, Color.Black.copy(alpha = 0.35f), style = Stroke(width = maxStroke * 1.08f, cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(bodyPath, brush = Brush.linearGradient(listOf(bodyColor.copy(alpha = 0.85f), bodyColor, headColor.copy(alpha = 0.9f))), style = Stroke(width = maxStroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        points.forEachIndexed { i, pt ->
+            if (i == 0) return@forEachIndexed
+            drawCircle(headColor.copy(alpha = 0.35f), cell * 0.08f, Offset(pt.x, pt.y - cell * 0.12f))
+            drawCircle(Color.Black.copy(alpha = 0.25f), cell * 0.05f, Offset(pt.x + cell * 0.1f, pt.y + cell * 0.05f))
+        }
         val hp = points[0]
         val angleDeg = when (dir) { RenderDir.UP -> -90f; RenderDir.DOWN -> 90f; RenderDir.LEFT -> 180f; RenderDir.RIGHT -> 0f }
         val headR = cell * 0.42f
@@ -97,6 +102,8 @@ internal fun SmoothSnakeBoard(
             drawCircle(Color.White, eyeR, Offset(hp.x + headR * 0.35f, eyeY + eyeX * 0.5f))
             drawCircle(Color(0xFF0A1410), eyeR * 0.55f, Offset(hp.x + headR * 0.42f, eyeY - eyeX * 0.5f))
             drawCircle(Color(0xFF0A1410), eyeR * 0.55f, Offset(hp.x + headR * 0.42f, eyeY + eyeX * 0.5f))
+            drawLine(Color(0xFF1A1A1A), Offset(hp.x + headR * 0.15f, eyeY - eyeX * 0.85f), Offset(hp.x + headR * 0.55f, eyeY - eyeX * 0.35f), cell * 0.05f, cap = StrokeCap.Round)
+            drawLine(Color(0xFF1A1A1A), Offset(hp.x + headR * 0.15f, eyeY + eyeX * 0.85f), Offset(hp.x + headR * 0.55f, eyeY + eyeX * 0.35f), cell * 0.05f, cap = StrokeCap.Round)
         }
         if (points.size >= 2) drawCircle(bodyColor.copy(alpha = 0.7f), minStroke * 0.55f, points.last())
     }
