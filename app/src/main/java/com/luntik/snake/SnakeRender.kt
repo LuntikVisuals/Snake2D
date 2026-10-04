@@ -158,6 +158,19 @@ internal fun SmoothSnakeBoard(
             "drawn" -> drawCircle(Color.Black, cell * 0.3f, face, style = Stroke(width = 3f))
             "plankton" -> drawCircle(Color(0xFF66BB6A), cell * 0.22f, face)
         }
+        val tick = (System.currentTimeMillis() / 120L % 8).toInt()
+        points.forEachIndexed { i, pt ->
+            if (i % 2 != tick % 2) return@forEachIndexed
+            when (appearance) {
+                "patrick" -> drawCircle(Color(0xFFFFF59D), cell * 0.08f, Offset(pt.x, pt.y - cell * 0.45f))
+                "squidward" -> drawRect(Color(0xFFB0A48A), Offset(pt.x - cell * 0.08f, pt.y - cell * 0.2f), Size(cell * 0.16f, cell * 0.16f))
+                "gary" -> drawCircle(Color(0xFFFF8A65), cell * 0.07f, Offset(pt.x + cell * 0.2f, pt.y))
+                "krabs" -> drawCircle(Color(0xFFFFD54F), cell * 0.09f, Offset(pt.x, pt.y - cell * 0.35f))
+                "spongebob" -> drawCircle(Color(0xFFFFF176).copy(alpha = 0.7f), cell * 0.16f, pt)
+                "drawn" -> drawLine(Color.Black.copy(alpha = 0.7f), Offset(pt.x - cell * 0.2f, pt.y), Offset(pt.x + cell * 0.2f, pt.y - cell * 0.15f), 2f)
+                "plankton" -> drawCircle(Color.White, cell * 0.05f, Offset(pt.x, pt.y - cell * 0.3f))
+            }
+        }
     }
 }
 
